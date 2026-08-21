@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "conferences": [
+    {
+      "id": "example-conference",
+      "title": "示例学术会议",
+      "subtitle": "配置示例（可替换为 PDF 导入结果）",
+      "dateRange": "2026年8月10日–12日",
+      "location": "示例会场",
+      "sourceNote": "这是可提交的通用配置示例，不包含真实会议资料。",
+      "talkCount": 2,
+      "posterCount": 2,
+      "days": [
+        {
+          "id": "2026-08-10",
+          "label": "8月10日",
+          "weekday": "周一",
+          "sessions": [
+            {
+              "id": "example-session",
+              "title": "示例 Session",
+              "start": "09:00",
+              "end": "10:00",
+              "venue": "示例主会场",
+              "chair": "待确认",
+              "note": "用于验证页面层级。",
+              "items": [
+                {
+                  "id": "example-talk-1",
+                  "kind": "talk",
+                  "title": "示例邀请报告",
+                  "speaker": "示例报告人",
+                  "affiliation": "示例单位",
+                  "start": "09:00",
+                  "end": "09:30",
+                  "badge": "邀请报告"
+                },
+                {
+                  "id": "example-talk-2",
+                  "kind": "talk",
+                  "title": "示例口头报告",
+                  "speaker": "示例报告人",
+                  "affiliation": "示例单位",
+                  "start": "09:30",
+                  "end": "10:00",
+                  "badge": "口头报告"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "posters": [
+        {
+          "id": "example-poster-1",
+          "kind": "poster",
+          "code": "POSTER-001",
+          "title": "示例海报一",
+          "speaker": "示例作者",
+          "affiliation": "示例单位",
+          "badge": "海报"
+        },
+        {
+          "id": "example-poster-2",
+          "kind": "poster",
+          "code": "POSTER-002",
+          "title": "示例海报二",
+          "speaker": "示例作者",
+          "affiliation": "示例单位",
+          "badge": "海报"
+        }
+      ]
+    }
+  ]
+}

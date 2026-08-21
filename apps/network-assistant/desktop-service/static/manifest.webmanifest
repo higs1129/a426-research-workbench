@@ -1,0 +1,20 @@
+{
+  "name": "A426 网络体检",
+  "short_name": "网络体检",
+  "description": "检查 Tailscale 路径、Clash Meta 节点和当前公网可达性。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#06111b",
+  "theme_color": "#07131f",
+  "lang": "zh-CN",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

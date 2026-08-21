@@ -1,0 +1,13 @@
+<resources>
+    <color name="ink">#07131B</color>
+    <color name="panel">#10242F</color>
+    <color name="panel_alt">#142D39</color>
+    <color name="text_primary">#F2FBFF</color>
+    <color name="text_secondary">#92ABB7</color>
+    <color name="cyan">#21D6D9</color>
+    <color name="cyan_dark">#0899AD</color>
+    <color name="violet">#8E6AF4</color>
+    <color name="green">#47D597</color>
+    <color name="amber">#FFB85A</color>
+    <color name="red">#FF6B77</color>
+</resources>

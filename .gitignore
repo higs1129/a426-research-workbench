@@ -1,0 +1,40 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+config.local.json
+runtime.local.json
+*.local.json
+local.properties
+
+# Python and Java/Android build state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.gradle/
+**/build/
+*.apk
+*.aab
+
+# Runtime state
+*.log
+tmp/
+.cache/
+.codex-remote-attachments/
+.SynologyWorkingDirectory/
+
+# External research and personal records
+/data/
+/experiments/
+/literature/
+/notes/
+/reports/
+/conferences/
+/recordings/
+/assets/
+
+# Windows metadata
+Thumbs.db
+desktop.ini

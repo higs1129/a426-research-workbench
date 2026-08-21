@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f0e8">
+    <title>每日草稿</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">DAILY SCRATCHPAD</p>
+          <h1>今天先记下来</h1>
+          <p class="subtitle">文字、图片和随手画，都放在同一张草稿纸上。</p>
+        </div>
+        <div class="save-state" id="saveState" data-state="idle" aria-live="polite">
+          <span class="save-dot"></span>
+          <span id="saveText">正在打开……</span>
+        </div>
+      </header>
+
+      <section class="date-bar" aria-label="选择记录日期">
+        <button class="date-step" id="previousDay" type="button" aria-label="前一天">←</button>
+        <label class="date-control">
+          <span id="dateLabel">今天</span>
+          <input id="dateInput" type="date" aria-label="记录日期">
+        </label>
+        <button class="date-step" id="nextDay" type="button" aria-label="后一天">→</button>
+        <button class="today-button" id="todayButton" type="button">回到今天</button>
+      </section>
+
+      <section class="board-card" aria-labelledby="friendlyDate">
+        <header class="board-heading">
+          <div>
+            <p id="friendlyDate">选择一天开始记录</p>
+            <p class="hint">双击任意位置写字；粘贴图片后可以拖动和缩放。</p>
+          </div>
+          <div class="board-actions">
+            <button id="focusCanvas" class="focus-button" type="button" aria-pressed="false">全屏画布</button>
+            <div class="zoom-group" aria-label="画布缩放">
+              <button id="zoomOut" type="button" aria-label="缩小">−</button>
+              <button id="fitView" type="button"><span id="zoomText">100%</span></button>
+              <button id="zoomIn" type="button" aria-label="放大">＋</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="board-toolbar" role="toolbar" aria-label="草稿工具">
+          <div class="tool-group primary-tools">
+            <button id="selectTool" class="tool-button active" type="button">选择</button>
+            <button id="textTool" class="tool-button" type="button">文字</button>
+            <button id="penTool" class="tool-button" type="button">画笔</button>
+            <button id="eraserTool" class="tool-button" type="button">橡皮</button>
+            <button id="imageUploadButton" class="tool-button" type="button">图片</button>
+            <input
+              id="imageUploadInput"
+              type="file"
+              accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,image/png,image/jpeg,image/webp,image/gif,image/bmp"
+              multiple
+              hidden
+            >
+          </div>
+          <label class="color-control">
+            <span>颜色</span>
+            <input id="drawingColor" type="color" value="#1f7465" aria-label="画笔颜色">
+          </label>
+          <label class="width-control">
+            <span>粗细</span>
+            <input id="drawingWidth" type="range" min="2" max="28" value="6" aria-label="画笔粗细">
+          </label>
+          <div class="tool-group object-tools">
+            <button id="sendBackward" class="tool-button" type="button" disabled>后移</button>
+            <button id="bringForward" class="tool-button" type="button" disabled>前移</button>
+            <button id="undoButton" class="tool-button" type="button" disabled>撤销</button>
+          </div>
+        </div>
+
+        <div id="canvasViewport" class="canvas-viewport" tabindex="0" aria-label="自由记录画布">
+          <div id="canvasWorld" class="canvas-world">
+            <svg id="strokeLayer" class="stroke-layer" viewBox="0 0 6000 4000" aria-hidden="true"></svg>
+            <div id="elementsLayer" class="elements-layer"></div>
+          </div>
+          <div id="canvasHint" class="canvas-hint">
+            <strong>双击这里开始写</strong>
+            <span>手机点“图片”选择相册；电脑也可以按 Ctrl+V 粘贴</span>
+          </div>
+        </div>
+
+        <footer class="board-footer">
+          <span>滚轮缩放 · 按住空格拖动画布 · 手机双指缩放移动</span>
+          <span id="selectionHint">当前没有选中对象</span>
+        </footer>
+      </section>
+
+      <section class="recent" aria-labelledby="recentTitle">
+        <div class="recent-heading">
+          <h2 id="recentTitle">最近记录</h2>
+          <span>点击日期即可返回补充</span>
+        </div>
+        <div id="recentDates" class="recent-dates"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden role="status"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">链路助手</string>
+    <string name="widget_description">显示当前 VPN、链路质量与 Remote 网络入口状态</string>
+    <string name="switch_tailscale">Tailscale\n经 A426</string>
+    <string name="switch_clash">Clash Meta\n代理节点</string>
+    <string name="codex_widget_description">分行显示 A426 上 Codex 任务的运行与完成状态</string>
+</resources>

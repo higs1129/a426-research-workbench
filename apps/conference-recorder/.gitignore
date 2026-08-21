@@ -1,0 +1,5 @@
+.gradle/
+**/build/
+local.properties
+app/src/debug/assets/conference.local.json
+/tmp/
