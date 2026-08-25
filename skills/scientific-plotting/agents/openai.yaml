@@ -1,4 +1,4 @@
 interface:
   display_name: "Scientific Plotting"
-  short_description: "Create readable scientific figures for reports and talks."
-  default_prompt: "Use $scientific-plotting to create or revise this scientific figure for clear report and presentation use."
+  short_description: "Create traceable scientific figures and editable HTML plots."
+  default_prompt: "Use $scientific-plotting to create or revise this scientific figure for its final print, presentation, or editable HTML context."
