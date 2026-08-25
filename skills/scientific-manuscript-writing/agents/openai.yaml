@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scientific Manuscript Writing"
+  short_description: "Evidence-led scientific manuscript drafting and review"
+  default_prompt: "Use $scientific-manuscript-writing to structure, draft, and self-review this scientific manuscript."

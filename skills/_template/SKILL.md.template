@@ -1,0 +1,47 @@
+---
+name: replace-with-skill-name
+description: Describe what this skill does, when it must be used, and the closest cases where it must not be used.
+metadata:
+  version: "1.0"
+  skill-author: "Personal Research Workflow"
+---
+
+# Skill Title
+
+## Purpose and boundaries
+
+用一两句话说明这个 Skill 稳定解决的问题和预期交付物。
+
+## When to use
+
+- 应触发：
+- 不应触发：
+
+## Inputs
+
+- 必需输入：
+- 可选输入：
+- 缺失哪些信息时必须向用户确认：
+
+## Reproducible workflow
+
+1. 检查输入和适用边界。
+2. 复用已有参考资料、脚本或资产。
+3. 执行最小必要步骤。
+4. 验证结果并说明未确认项。
+
+## Evidence and validation
+
+- 证据或状态依据：
+- 静态检查：
+- 结果检查：
+
+## Failure modes
+
+- 常见误用：
+- 必须停止或降级的条件：
+- 与相邻 Skill 的分工：
+
+## Resources
+
+- 仅列出实际存在的 `references/`、`scripts/` 或 `assets/`，并说明何时使用。

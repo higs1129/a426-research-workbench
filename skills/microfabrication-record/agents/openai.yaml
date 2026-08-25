@@ -1,0 +1,4 @@
+interface:
+  display_name: "Microfabrication Record"
+  short_description: "Organize fabrication evidence into a traceable process record."
+  default_prompt: "Use $microfabrication-record to organize these fabrication notes, parameters, measurements, and images into a traceable record."

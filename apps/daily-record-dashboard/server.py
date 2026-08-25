@@ -699,7 +699,7 @@ def main() -> int:
         return 2
 
     data_root = Path(args.data_root).expanduser().resolve()
-    repository_root = ROOT.parents[2].resolve()
+    repository_root = ROOT.parents[1].resolve()
     if data_root == repository_root or repository_root in data_root.parents:
         print(f"ERROR: 记录目录不能位于代码仓库内：{data_root}", file=sys.stderr)
         return 2

@@ -105,7 +105,7 @@ python tools/import_microcavity_2026_pdf.py `
 
 同一个生成结果也可以直接传到手机，在 App 首页右上角进入“管理 → 导入或更新会议 → 选择会议 JSON”。导入成功后会议列表立即刷新，后续新增会议不需要重新打包或安装 APK。当前导入器支持 `schemaVersion` 1–2，单个 JSON 上限为 10 MB。
 
-手机报告包写入用户授权的 Synology Drive 本地同步目录，再由 Drive 单向上传群晖。群晖原始资料由 A426 通过 `W:\` 只读；转写、OCR 和易读结果写入 `DAILY_NOTE_DATA_ROOT/conferences/`，不得写入代码仓库，也不得把处理结果写回 `W:\`。
+手机报告包写入用户授权的 Synology Drive 本地同步目录，再由 Drive 单向上传群晖。群晖原始资料由 A426 通过 `W:\` 只读；转写、OCR 和易读结果写入 `DAILY_NOTE_DATA_ROOT/meetings/`，不得写入代码仓库，也不得把处理结果写回 `W:\`。
 
 真实采集包结构：
 

@@ -1,13 +1,16 @@
 ---
-name: microfabrication-session
-description: Use when recording,整理, or生成微加工/器件加工/fab/deep silicon etch/ICP/除胶/裂片等现场加工 session. Turns natural-language现场记录 into a traceable Markdown session with images, parameters, observations, judgments, decisions, and follow-up measurement plans.
+name: microfabrication-record
+description: Records or organizes onsite microfabrication, device fabrication, fab, lithography, ICP/etching, coating, cleaning, cleaving, and process-measurement evidence into a traceable Markdown record with parameters, samples, images, observations, judgments, and follow-up plans. Use for actual fabrication notes and evidence packages. Do not use for equipment control, general fabrication literature reviews, or summaries without fabrication records.
+metadata:
+  version: "1.0"
+  skill-author: "Personal Research Workflow"
 ---
 
-# Microfabrication Session Skill
+# Microfabrication Record
 
-## 目标
+## 目的与边界
 
-把现场自然语言记录整理成可复盘、可生成日总结/周总结/组会材料的微加工 session。
+把现场自然语言记录整理成可复盘、可用于周总结或组会材料的微加工记录。记录文件可以继续命名为 `session.md`，但 Skill 的职责是证据整理，不是控制设备或启动一次“会话”。
 
 核心不是写漂亮总结，而是保留：
 
@@ -20,7 +23,24 @@ description: Use when recording,整理, or生成微加工/器件加工/fab/deep 
 - 后续测量/继续加工应该关注什么。
 - 哪些图片可以用于图文汇报。
 
-## 默认目录结构
+不使用本 Skill 控制加工设备、修改 recipe、代替工程师安全判断，也不把一般微加工文献调研包装成现场记录。记录中的 AI 建议必须与实际操作和工程师判断分开。
+
+## 何时使用
+
+- 应触发：用户正在进行或整理光刻、涂胶、曝光、显影、ICP/刻蚀、镀膜、除胶、清洗、裂片、过程测量等实际加工记录。
+- 应触发：需要把现场文字、参数、照片、测量结果和判断整理为可追溯 `session.md` 或同类记录。
+- 不应触发：设备控制、纯文献调研、没有现场加工证据的泛化总结，或只需要生成周报/月报的请求。
+
+## 可复现工作流
+
+1. 明确加工日期、样品层级、工艺目标、设备/平台和当前记录阶段。
+2. 在对话中先按事实、参数、观察、判断、AI 建议和待确认事项轻量归类，避免打断现场输入。
+3. 追问影响复现、安全、计算或下一步决策的少量关键信息。
+4. 将参数变化绑定到具体样品、测试片和轮次；对计算写明条件、单位和比较边界。
+5. 在一段工作收口或用户明确要求时，保存图片、按真实工艺顺序整理记录并生成短 checklist。
+6. 按“证据与验证”检查样品、参数、测量、异常、图片和结论是否能够相互追溯。
+
+### 默认目录结构
 
 新建微加工 session 时，优先放在：
 
@@ -40,7 +60,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 003_small_hole_residue_after_etch.jpg
 ```
 
-## 现场记录分类
+### 现场记录分类
 
 整理记录时必须区分：
 
@@ -53,7 +73,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 
 不能把观察、推测和结论混写成同一类。
 
-## 即时追问规则
+### 即时追问规则
 
 发现影响计算、归类、参数有效性或后续决策的信息缺口时，应当场追问，不要拖到日总结。
 
@@ -71,7 +91,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 - 待回看设备日志。
 - 暂不影响当前结论。
 
-## 现场协作节奏
+### 现场协作节奏
 
 现场密集记录时，优先保证用户输入不断流，不要每条记录都立刻写入 `session.md`。
 
@@ -81,7 +101,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 - 正式整理时应按真实工艺流程重排，而不是按聊天顺序简单拼接。
 - 收口时优先生成短 checklist，方便下次现场直接使用。
 
-## 参数与样品绑定
+### 参数与样品绑定
 
 参数变更必须绑定对象和轮次。
 
@@ -100,7 +120,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 
 速率标定片必须明确它是否为正式样品。若只是材料消耗速率测试片，应写成“标定片/测试片”，不要和正式样品流程混写。
 
-## 测量与计算
+### 测量与计算
 
 只要记录目标是算速率，至少需要：
 
@@ -124,7 +144,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 - Si 约 1200 nm/cycle，SiO2 约 3.07 nm/cycle，粗略量级约 391:1。
 ```
 
-## 装载与异常
+### 装载与异常
 
 对碎片样品、异形样品或临时装载样品，必须记录：
 
@@ -139,7 +159,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 
 若出现变黑、粘连、油膜、局部污染，应优先记录异常位置与固定介质接触区域是否空间相关。空间相关可以写成“高度怀疑相关”，除非有额外证据，不写成已证实因果。
 
-## 刻透与百分比描述
+### 刻透与百分比描述
 
 “刻透”必须记录判据：
 
@@ -162,7 +182,7 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 - 对单个小洞开口而言，约 80% 面积已经刻透，边缘仍有残留。
 ```
 
-## 图片证据
+### 图片证据
 
 现场图片是 session 资产，不是附件。
 
@@ -172,15 +192,11 @@ $DAILY_NOTE_DATA_ROOT/experiments/YYYY-MM-DD/<short_process_name>/
 - 对应阶段。
 - 图片能证明什么。
 
-Markdown 中应直接嵌图：
-
-```markdown
-![正式样品装载状态](images/001_formal_sample_loaded_quartz_ring.jpg)
-```
+Markdown 中应直接嵌图，并使用记录目录内的相对图片路径，例如将“正式样品装载状态”指向 `images/001_formal_sample_loaded_quartz_ring.jpg`。
 
 周总结、组会材料优先从 session 的图片证据中选图，避免后续重新翻聊天记录。
 
-## 生成 session.md 前的短收口
+### 生成 session.md 前的短收口
 
 正式生成 `session.md` 前，应做一次短收口追问。问题不要贪多，通常问 2-4 个：
 
@@ -195,7 +211,7 @@ Markdown 中应直接嵌图：
 - 说明建议依据。
 - 给出少量可执行建议。
 
-## session.md 推荐结构
+### session.md 推荐结构
 
 ```markdown
 # YYYY-MM-DD <工艺主题> session
@@ -216,3 +232,24 @@ Markdown 中应直接嵌图：
 ```
 
 结构可以按实际任务删减，不要为了模板写空段落。
+
+## 证据与验证
+
+生成或更新记录后检查：
+
+- 每个参数变化都能对应样品、测试片或加工轮次，正式样品与标定片没有混写。
+- 数值保留原始单位，速率、选择比和百分比写明输入量、计算条件、判据与分母。
+- 事实、观察、现场判断、AI 建议和待确认事项保持分离；空间相关或工程量级比较没有升级成已证实因果。
+- 图片已进入记录资产目录，路径可用，并说明阶段和能够支持的观点。
+- 异形装载、固定介质、异常位置、清洁和复用历史得到记录。
+- 输出目录遵循当前项目规则；原始资料和图片不进入 Git，也不只留在聊天附件或临时缓存中。
+
+## 常见失败模式
+
+- 按聊天顺序直接拼接，导致真实工艺流程和参数轮次错位。
+- 只记录 recipe 数字，不记录样品、装载、设备状态、判据和实际观察。
+- 把标定片结果直接当作正式样品结果，或把不同条件数据计算成严格选择比。
+- 使用“刻透 80%”“大部分可测”等描述，却没有说明判据和分母。
+- 把工程师经验、用户判断或 AI 推测写成已经验证的因果结论。
+- 现场每来一条信息就立即落盘，打断记录节奏并产生大量碎片修改。
+- 图片仍停留在聊天缓存或临时路径，后续无法用于复盘和汇报。

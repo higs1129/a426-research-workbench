@@ -1,17 +1,37 @@
 ---
 name: scientific-plotting
-description: Use whenever creating, updating, or regenerating scientific figures for experiments, measurements, reports, talks, session.md records, or data analysis; ensures plots are readable in meeting-room projection and labels do not obscure data.
+description: Creates, updates, or regenerates scientific figures for experiments, measurements, reports, talks, session records, and data analysis with projection-readable layout and traceable visual choices. Use when a figure is an intended output or an existing figure must be revised. Do not use for interpreting an unchanged figure, general image editing, or decorative illustration.
+metadata:
+  version: "1.0"
+  skill-author: "Personal Research Workflow"
 ---
 
 # Scientific Plotting
 
-## Core Rule
+## Purpose and boundaries
 
 Every new figure should be readable when projected in a meeting room. Prioritize clear communication over packing everything inside the axes.
 
 This skill applies to new plots only unless the user asks to revise old figures.
 
-## Meeting-Room Readability Gate
+It governs visual construction and verification, not the scientific interpretation of unchanged figures. Preserve data provenance and do not let styling, smoothing, or annotation imply evidence the data do not contain.
+
+## When to use
+
+- Use for a new or revised scientific plot, multipanel figure, quicklook, report figure, slide figure, or `session.md` figure.
+- Use when plotting choices affect raw/processed data distinction, units, uncertainty, readability, or visual emphasis.
+- Do not use when the task is only to explain an existing figure, edit a photograph, create decorative artwork, or write prose without producing a figure.
+
+## Reproducible workflow
+
+1. Identify the scientific question, intended audience, output format, target display size, data source, units, and whether the figure is exploratory or final.
+2. Inspect the authoritative data and distinguish raw values, transformations, fits, smoothing, uncertainty, and annotations.
+3. Choose the smallest layout that communicates the comparison without covering data or shrinking text; split panels when necessary.
+4. Generate the figure with explicit labels, units, visual hierarchy, and output path outside tracked repositories when the figure is a research artifact.
+5. Render the actual PNG, SVG, PDF, or HTML and inspect it at its intended scale.
+6. Apply the validation gate below and revise until no material clipping, overlap, ambiguity, or misleading emphasis remains.
+
+## Evidence and visual validation
 
 Treat readability as a hard gate for every report, weekly-summary, monthly-summary, and meeting figure. A figure is not finished until it can be read at normal browser zoom or slide scale without zooming into the page.
 
@@ -55,7 +75,7 @@ Treat readability as a hard gate for every report, weekly-summary, monthly-summa
 - Put detailed run parameters in the caption, side panel, or session text instead of inside the data area.
 - Prefer concise labels in the figure and fuller explanations in `session.md`.
 
-## Layout Checks
+### Layout checks
 
 Before saving a figure:
 
@@ -65,7 +85,27 @@ Before saving a figure:
 4. Check that the figure still works at slide scale, not only when zoomed in.
 5. If there are multiple stages or parameter groups, use color bands or separate panels with a clear external legend.
 
-## Matplotlib Defaults
+Also verify that:
+
+- every plotted quantity has an authoritative source and correct unit;
+- data, fits, theory, smoothing, and guides-to-the-eye are visually and verbally distinguishable;
+- uncertainty is shown when supported and not fabricated for single acquisitions;
+- exact numeric claims come from the declared source rather than a visually convenient smoothed curve;
+- the final file opens correctly and remains legible at slide, report, or publication size.
+
+## Failure modes
+
+- Finishing from source code without rendering and inspecting the actual output.
+- Shrinking fonts to accommodate too many curves, panels, parameters, or legend entries.
+- Allowing legends, labels, or shaded regions to obscure peaks, dips, thresholds, markers, or raw fluctuations.
+- Styling a smoothed or fitted trace so strongly that it appears to be the measurement, or extracting exact optima from the smoothed guide without disclosure.
+- Mixing incompatible frequency axes, units, normalizations, or calibration assumptions in one visual comparison.
+- Saving final research figures into a tracked code repository instead of the user-provided or project-defined data/output location.
+- Applying the default style mechanically when a journal, accessibility requirement, grayscale output, or local figure system requires a different choice.
+
+## Tool-specific defaults
+
+### Matplotlib
 
 When using Matplotlib, start from settings like:
 
@@ -96,7 +136,7 @@ ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
 
 If the external legend needs more room, enlarge the figure instead of shrinking fonts.
 
-## Measurement Figures
+### Measurement figures
 
 For scope traces, spectra, PID sweeps, and lock timelines:
 
