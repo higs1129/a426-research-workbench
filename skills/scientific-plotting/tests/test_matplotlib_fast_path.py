@@ -125,6 +125,8 @@ def main() -> None:
         raise AssertionError("The title/legend stack lacks the browser-metric safety reserve.")
 
     report = json.loads(TIMING.read_text(encoding="utf-8"))
+    report["plotScript"] = PLOT_SCRIPT.relative_to(SKILL_ROOT).as_posix()
+    report["output"] = OUTPUT.relative_to(SKILL_ROOT).as_posix()
     report["timings"]["deterministic_validation_ms"] = elapsed_ms(validation_start)
     report["timings"]["test_process_total_ms"] = elapsed_ms(test_start)
     report["checks"] = sorted(required)

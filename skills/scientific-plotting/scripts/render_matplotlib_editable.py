@@ -417,7 +417,7 @@ def export_svg(figure: Figure) -> str:
     start = raw.find("<svg")
     if start < 0:
         raise SystemExit("Matplotlib did not produce an SVG root element.")
-    return raw[start:]
+    return "\n".join(line.rstrip() for line in raw[start:].splitlines()) + "\n"
 
 
 def add_interaction_layers(svg: str, bounds: dict[str, float]) -> str:

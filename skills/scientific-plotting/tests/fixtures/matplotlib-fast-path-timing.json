@@ -1,0 +1,43 @@
+{
+  "plotScript": "tests/fixtures/matplotlib_standard_plot.py",
+  "output": "tests/fixtures/matplotlib-fast-path.html",
+  "profileId": "90mm-single",
+  "seriesCount": 1,
+  "pointCount": 2401,
+  "timings": {
+    "setup_and_module_load_ms": 12.614,
+    "data_load_ms": 0.118,
+    "matplotlib_build_ms": 91.937,
+    "svg_export_ms": 33.847,
+    "html_assembly_ms": 2.092,
+    "output_write_ms": 0.743,
+    "total_ms": 141.372,
+    "deterministic_validation_ms": 2.801,
+    "test_process_total_ms": 612.332
+  },
+  "checks": [
+    "box zoom",
+    "browser title-legend check",
+    "collective x tick-label role",
+    "collective y tick-label role",
+    "editable SVG text",
+    "editor",
+    "fast-path identity",
+    "fixed-step tick bridge",
+    "hover layer",
+    "inline SVG",
+    "layout mode",
+    "layout numeric offset",
+    "layout role bridge",
+    "layout undo",
+    "legend role",
+    "legend-axis gap token",
+    "pan",
+    "runtime-ready hook",
+    "shared runtime",
+    "tick-label gap token",
+    "title-legend gap token",
+    "top-layout safety token",
+    "whole-element layout hit target"
+  ]
+}
