@@ -2,7 +2,7 @@
 name: research-progress-summary
 description: Generates concise, evidence-linked weekly, monthly, or yearly research progress reports from daily records, experiments, research notes, meetings, and deliverables; weekly reports use a confirmed, editable offline interactive HTML workflow. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for daily canvas entries, one paper or meeting, or manuscript drafting.
 metadata:
-  version: "1.6"
+  version: "1.7"
   skill-author: "Personal Research Workflow"
 ---
 
