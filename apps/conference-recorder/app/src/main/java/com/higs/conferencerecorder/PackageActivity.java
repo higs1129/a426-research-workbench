@@ -375,6 +375,7 @@ public final class PackageActivity extends BaseActivity {
         transcriptionPreview.setTextIsSelectable(true);
         transcriptionPreview.setMaxLines(6);
         transcriptionPreview.setEllipsize(TextUtils.TruncateAt.END);
+        transcriptionPreview.setOnClickListener(view -> showFullTranscript());
         LinearLayout.LayoutParams previewParams = UiKit.matchWrap();
         previewParams.topMargin = UiKit.dp(this, 9);
         card.addView(transcriptionPreview, previewParams);
@@ -1114,6 +1115,10 @@ public final class PackageActivity extends BaseActivity {
                 && !transcriptionRunning
                 && !exportRunning
                 && !isCurrentCaptureRecording();
+        transcriptionPreview.setClickable(transcriptActionEnabled);
+        transcriptionPreview.setFocusable(transcriptActionEnabled);
+        transcriptionPreview.setContentDescription(hasTranscript
+                ? "逐字稿预览，点击查看完整内容" : "英文字幕预览");
         if (viewTranscriptButton != null) {
             viewTranscriptButton.setVisibility(hasTranscript ? View.VISIBLE : View.GONE);
             viewTranscriptButton.setEnabled(transcriptActionEnabled);
