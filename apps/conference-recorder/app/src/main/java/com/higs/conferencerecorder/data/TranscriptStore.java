@@ -119,10 +119,22 @@ public final class TranscriptStore {
         }
     }
 
+    public static void delete(CaptureSessionStore.CaptureBundle capture) throws IOException {
+        if (capture == null) return;
+        deleteIfExists(capture.transcriptMetadataFile());
+        deleteIfExists(capture.transcriptFile());
+    }
+
     private static void writeUtf8(File target, String value) throws IOException {
         try (FileOutputStream output = new FileOutputStream(target, false)) {
             output.write(value.getBytes(StandardCharsets.UTF_8));
             output.getFD().sync();
+        }
+    }
+
+    private static void deleteIfExists(File target) throws IOException {
+        if (target != null && target.exists() && !target.delete()) {
+            throw new IOException("无法删除 " + target.getName());
         }
     }
 

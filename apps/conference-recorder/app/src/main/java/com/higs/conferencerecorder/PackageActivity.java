@@ -23,6 +23,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -76,6 +77,8 @@ public final class PackageActivity extends BaseActivity {
     private TextView transcriptionStatus;
     private TextView transcriptionPreview;
     private TextView transcriptionButton;
+    private TextView viewTranscriptButton;
+    private TextView deleteTranscriptButton;
     private TextView offlineModelButton;
     private TextView materialsSummary;
     private TextView materialsToggleLabel;
@@ -379,6 +382,13 @@ public final class PackageActivity extends BaseActivity {
         transcriptionButton = UiKit.button(this, "重新转写已有录音", false);
         transcriptionButton.setOnClickListener(view -> requestTranscription());
         card.addView(transcriptionButton);
+        viewTranscriptButton = UiKit.button(this, "查看完整逐字稿", false);
+        viewTranscriptButton.setOnClickListener(view -> showFullTranscript());
+        card.addView(viewTranscriptButton);
+        deleteTranscriptButton = UiKit.button(this, "删除逐字稿", false);
+        deleteTranscriptButton.setTextColor(UiKit.CORAL);
+        deleteTranscriptButton.setOnClickListener(view -> confirmDeleteTranscript());
+        card.addView(deleteTranscriptButton);
         offlineModelButton = UiKit.button(this, "下载离线英文模型（约 40 MB）", false);
         offlineModelButton.setOnClickListener(view -> downloadOfflineEnglishModel());
         card.addView(offlineModelButton);
@@ -459,6 +469,54 @@ public final class PackageActivity extends BaseActivity {
         } else {
             chooseEngine.run();
         }
+    }
+
+    private void showFullTranscript() {
+        CaptureSessionStore.CaptureBundle capture = captureBundle(false);
+        String transcript = TranscriptStore.read(capture);
+        if (transcript.isEmpty()) {
+            Toast.makeText(this, "当前报告没有逐字稿", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        TextView content = UiKit.text(this, transcript, 15, UiKit.TEXT_PRIMARY, false);
+        content.setTextIsSelectable(true);
+        content.setPadding(
+                UiKit.dp(this, 22), UiKit.dp(this, 14),
+                UiKit.dp(this, 22), UiKit.dp(this, 18));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(content);
+        new AlertDialog.Builder(this)
+                .setTitle("完整英文逐字稿 · " + transcript.length() + " 字")
+                .setView(scroll)
+                .setPositiveButton("关闭", null)
+                .show();
+    }
+
+    private void confirmDeleteTranscript() {
+        if (isCurrentCaptureRecording() || transcriptionRunning) {
+            Toast.makeText(this, "请先结束录音或转写任务", Toast.LENGTH_LONG).show();
+            return;
+        }
+        CaptureSessionStore.CaptureBundle capture = captureBundle(false);
+        if (!TranscriptStore.hasTranscript(capture)) return;
+        new AlertDialog.Builder(this)
+                .setTitle("删除本机逐字稿？")
+                .setMessage("只删除当前 App 暂存区里的 transcript.txt 和 transcription.json；原始 M4A、照片、备注及已经导出的报告包不受影响。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除逐字稿", (dialog, which) -> {
+                    try {
+                        TranscriptStore.delete(capture);
+                        Toast.makeText(this, "本机逐字稿已删除", Toast.LENGTH_SHORT).show();
+                    } catch (IOException error) {
+                        Toast.makeText(
+                                this,
+                                "逐字稿删除失败：" + error.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    }
+                    renderCaptureState();
+                    renderExportState();
+                })
+                .show();
     }
 
     private void chooseTranscriptionEngine(
@@ -1052,6 +1110,20 @@ public final class PackageActivity extends BaseActivity {
         transcriptionButton.setText(transcriptionRunning
                 ? "正在转写…"
                 : (hasTranscript ? "重新转写已有录音" : "转写已有录音"));
+        boolean transcriptActionEnabled = hasTranscript
+                && !transcriptionRunning
+                && !exportRunning
+                && !isCurrentCaptureRecording();
+        if (viewTranscriptButton != null) {
+            viewTranscriptButton.setVisibility(hasTranscript ? View.VISIBLE : View.GONE);
+            viewTranscriptButton.setEnabled(transcriptActionEnabled);
+            viewTranscriptButton.setAlpha(transcriptActionEnabled ? 1f : 0.45f);
+        }
+        if (deleteTranscriptButton != null) {
+            deleteTranscriptButton.setVisibility(hasTranscript ? View.VISIBLE : View.GONE);
+            deleteTranscriptButton.setEnabled(transcriptActionEnabled);
+            deleteTranscriptButton.setAlpha(transcriptActionEnabled ? 1f : 0.45f);
+        }
         if (offlineModelButton != null) {
             boolean shouldOfferModel = SystemAudioTranscriber.availability(this)
                     != SystemAudioTranscriber.Availability.ON_DEVICE
