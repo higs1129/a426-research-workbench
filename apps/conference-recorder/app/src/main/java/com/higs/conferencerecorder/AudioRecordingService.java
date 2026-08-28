@@ -17,6 +17,9 @@ import com.higs.conferencerecorder.data.CaptureSessionStore;
 import com.higs.conferencerecorder.data.TranscriptStore;
 import com.higs.conferencerecorder.recording.PcmAacRecorder;
 import com.higs.conferencerecorder.transcription.LiveSystemTranscriber;
+import com.higs.conferencerecorder.transcription.LiveTranscriber;
+import com.higs.conferencerecorder.transcription.VoskLiveTranscriber;
+import com.higs.conferencerecorder.transcription.VoskModelManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,7 +45,10 @@ public final class AudioRecordingService extends Service {
     public static final String EXTRA_TITLE = "title";
     public static final String EXTRA_LIVE_TRANSCRIPTION = "live_transcription";
     public static final String EXTRA_LIVE_ON_DEVICE = "live_on_device";
+    public static final String EXTRA_LIVE_ENGINE = "live_engine";
     public static final String EXTRA_TRANSCRIPTION_BIASES = "transcription_biases";
+    public static final String ENGINE_ANDROID = "android";
+    public static final String ENGINE_VOSK = "vosk_offline";
 
     public enum State {
         IDLE,
@@ -68,7 +74,7 @@ public final class AudioRecordingService extends Service {
     private final ArrayList<String> transcriptionBiases = new ArrayList<>();
 
     private PcmAacRecorder recorder;
-    private LiveSystemTranscriber liveTranscriber;
+    private LiveTranscriber liveTranscriber;
     private File outputFile;
     private File transcriptFile;
     private File transcriptMetadataFile;
@@ -79,6 +85,7 @@ public final class AudioRecordingService extends Service {
     private String latestPartial = "";
     private boolean liveRequested;
     private boolean liveOnDevice;
+    private String liveEngine = ENGINE_ANDROID;
     private boolean liveHadFailure;
     private boolean stopFinished;
     private int liveRetryCount;
@@ -171,6 +178,8 @@ public final class AudioRecordingService extends Service {
         if (!requestedTitle.isEmpty()) title = requestedTitle;
         liveRequested = intent.getBooleanExtra(EXTRA_LIVE_TRANSCRIPTION, false);
         liveOnDevice = intent.getBooleanExtra(EXTRA_LIVE_ON_DEVICE, false);
+        liveEngine = value(intent, EXTRA_LIVE_ENGINE);
+        if (!ENGINE_VOSK.equals(liveEngine)) liveEngine = ENGINE_ANDROID;
         ArrayList<String> biases = intent.getStringArrayListExtra(EXTRA_TRANSCRIPTION_BIASES);
         transcriptionBiases.clear();
         if (biases != null) transcriptionBiases.addAll(biases);
@@ -189,7 +198,7 @@ public final class AudioRecordingService extends Service {
             recorder = new PcmAacRecorder(new PcmAacRecorder.Listener() {
                 @Override
                 public void onPcm(byte[] pcm, int length, int sampleRate) {
-                    LiveSystemTranscriber current = liveTranscriber;
+                    LiveTranscriber current = liveTranscriber;
                     if (current != null) current.offer(pcm, length);
                 }
 
@@ -214,12 +223,8 @@ public final class AudioRecordingService extends Service {
     private void startLiveTranscription() {
         if (!liveRequested || liveTranscriber != null
                 || (state != State.RECORDING && state != State.PAUSED)) return;
-        final LiveSystemTranscriber[] holder = new LiveSystemTranscriber[1];
-        LiveSystemTranscriber candidate = new LiveSystemTranscriber(
-                this,
-                transcriptionBiases,
-                liveOnDevice,
-                new LiveSystemTranscriber.Listener() {
+        final LiveTranscriber[] holder = new LiveTranscriber[1];
+        LiveTranscriber.Listener listener = new LiveTranscriber.Listener() {
                     private boolean isCurrent() { return liveTranscriber == holder[0]; }
 
                     @Override
@@ -262,7 +267,11 @@ public final class AudioRecordingService extends Service {
                         mainHandler.post(() -> handleLiveFailure(
                                 holder[0], message, lastPartial));
                     }
-                });
+                };
+        LiveTranscriber candidate = ENGINE_VOSK.equals(liveEngine)
+                ? new VoskLiveTranscriber(VoskModelManager.modelDirectory(this), listener)
+                : new LiveSystemTranscriber(
+                        this, transcriptionBiases, liveOnDevice, listener);
         holder[0] = candidate;
         liveTranscriber = candidate;
         try {
@@ -274,7 +283,7 @@ public final class AudioRecordingService extends Service {
         }
     }
 
-    private void handleLiveCompleted(LiveSystemTranscriber source) {
+    private void handleLiveCompleted(LiveTranscriber source) {
         if (liveTranscriber != source) return;
         liveTranscriber = null;
         if (state == State.FINALIZING) {
@@ -287,7 +296,7 @@ public final class AudioRecordingService extends Service {
     }
 
     private void handleLiveFailure(
-            LiveSystemTranscriber source, String message, String partialText) {
+            LiveTranscriber source, String message, String partialText) {
         if (source != null && liveTranscriber != null && liveTranscriber != source) return;
         if (liveTranscriber == source) liveTranscriber = null;
         if (partialText != null && !partialText.trim().isEmpty()) latestPartial = partialText.trim();
@@ -304,7 +313,9 @@ public final class AudioRecordingService extends Service {
 
     private void scheduleLiveRestart() {
         if (++liveRetryCount > 3) {
-            liveStatus = "英文实时字幕已停止；录音仍在正常保存，可在结束后重新转写";
+            liveStatus = ENGINE_VOSK.equals(liveEngine)
+                    ? "离线英文字幕已停止；录音仍在正常保存"
+                    : "英文实时字幕已停止；录音仍在正常保存，可在结束后重新转写";
             broadcastState();
             return;
         }
@@ -387,7 +398,11 @@ public final class AudioRecordingService extends Service {
                         transcriptFile,
                         transcriptMetadataFile,
                         joinedSegments(),
-                        liveOnDevice ? "android_on_device_live" : "android_system_service_live",
+                        ENGINE_VOSK.equals(liveEngine)
+                                ? "vosk_offline_live"
+                                : (liveOnDevice
+                                ? "android_on_device_live"
+                                : "android_system_service_live"),
                         partial || liveHadFailure ? "partial" : "complete",
                         outputFile,
                         liveSegments.size());
@@ -397,7 +412,9 @@ public final class AudioRecordingService extends Service {
                 liveStatus = "英文字幕保存失败：" + safeMessage(error);
             }
         } else if (liveRequested) {
-            liveStatus = "本段没有生成英文字幕，可使用录音结束后转写";
+            liveStatus = ENGINE_VOSK.equals(liveEngine)
+                    ? "本段没有生成离线英文字幕，原始录音已保存"
+                    : "本段没有生成英文字幕，可使用录音结束后转写";
         }
         state = State.IDLE;
         captureKey = "";

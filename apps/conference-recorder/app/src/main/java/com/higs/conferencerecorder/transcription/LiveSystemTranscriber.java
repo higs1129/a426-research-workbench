@@ -22,19 +22,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /** Feeds live PCM to Android 13+'s caller-provided speech-recognition audio source. */
-public final class LiveSystemTranscriber implements RecognitionListener, AutoCloseable {
-    public interface Listener {
-        void onStatus(String status);
-
-        void onPartial(String text);
-
-        void onSegment(String text);
-
-        void onCompleted();
-
-        void onFailed(String message, String lastPartial);
-    }
-
+public final class LiveSystemTranscriber implements RecognitionListener, LiveTranscriber {
     private static final byte[] END = new byte[0];
     private static final int MAX_QUEUED_FRAMES = 20; // At most two seconds of 100 ms frames.
 
@@ -68,6 +56,7 @@ public final class LiveSystemTranscriber implements RecognitionListener, AutoClo
     }
 
     @SuppressLint("InlinedApi")
+    @Override
     public void start(int sampleRate) throws IOException {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             throw new IOException("英文实时转写需要 Android 13 或更高版本");
@@ -109,6 +98,7 @@ public final class LiveSystemTranscriber implements RecognitionListener, AutoClo
     }
 
     /** Never blocks microphone capture. Old frames are discarded if recognition falls behind. */
+    @Override
     public void offer(byte[] pcm, int length) {
         if (closed || finishing || length <= 0) return;
         byte[] copy = Arrays.copyOf(pcm, length);
@@ -122,6 +112,7 @@ public final class LiveSystemTranscriber implements RecognitionListener, AutoClo
     }
 
     /** Drains queued audio and closes the pipe so segmented recognition can return final results. */
+    @Override
     public void finish() {
         if (closed || finishing) return;
         finishing = true;

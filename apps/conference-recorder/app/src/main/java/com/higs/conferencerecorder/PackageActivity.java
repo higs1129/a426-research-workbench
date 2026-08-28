@@ -40,6 +40,7 @@ import com.higs.conferencerecorder.model.Conference;
 import com.higs.conferencerecorder.model.ProgramItem;
 import com.higs.conferencerecorder.model.SessionBlock;
 import com.higs.conferencerecorder.transcription.SystemAudioTranscriber;
+import com.higs.conferencerecorder.transcription.VoskModelManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,6 +76,7 @@ public final class PackageActivity extends BaseActivity {
     private TextView transcriptionStatus;
     private TextView transcriptionPreview;
     private TextView transcriptionButton;
+    private TextView offlineModelButton;
     private TextView materialsSummary;
     private TextView materialsToggleLabel;
     private LinearLayout capturedMediaList;
@@ -84,6 +86,8 @@ public final class PackageActivity extends BaseActivity {
     private boolean exportRunning;
     private boolean materialsExpanded;
     private boolean transcriptionRunning;
+    private boolean modelDownloadRunning;
+    private String modelDownloadStatus = "";
     private SystemAudioTranscriber audioTranscriber;
     private final Handler timerHandler = new Handler(Looper.getMainLooper());
     private final Runnable timerTick = new Runnable() {
@@ -375,6 +379,9 @@ public final class PackageActivity extends BaseActivity {
         transcriptionButton = UiKit.button(this, "重新转写已有录音", false);
         transcriptionButton.setOnClickListener(view -> requestTranscription());
         card.addView(transcriptionButton);
+        offlineModelButton = UiKit.button(this, "下载离线英文模型（约 40 MB）", false);
+        offlineModelButton.setOnClickListener(view -> downloadOfflineEnglishModel());
+        card.addView(offlineModelButton);
         return card;
     }
 
@@ -383,12 +390,51 @@ public final class PackageActivity extends BaseActivity {
             case ON_DEVICE:
                 return "本机英文识别可用";
             case SYSTEM_MAY_USE_NETWORK:
-                return "系统英文识别可用";
+                return VoskModelManager.isInstalled(this)
+                        ? "离线英文模型可用" : "系统英文识别可用";
             case ANDROID_TOO_OLD:
-                return "需要 Android 13+";
+                return VoskModelManager.isInstalled(this)
+                        ? "离线英文模型可用" : "可下载离线英文模型";
             default:
-                return "系统识别不可用";
+                return VoskModelManager.isInstalled(this)
+                        ? "离线英文模型可用" : "可下载离线英文模型";
         }
+    }
+
+    private void downloadOfflineEnglishModel() {
+        if (modelDownloadRunning || VoskModelManager.isDownloading()) {
+            Toast.makeText(this, "离线英文模型正在下载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        modelDownloadRunning = true;
+        modelDownloadStatus = "正在连接模型下载地址";
+        renderCaptureState();
+        VoskModelManager.downloadAndInstall(this, new VoskModelManager.Listener() {
+            @Override
+            public void onProgress(String status, int percent) {
+                modelDownloadStatus = status + (percent > 0 ? " " + percent + "%" : "");
+                renderCaptureState();
+            }
+
+            @Override
+            public void onComplete() {
+                modelDownloadRunning = false;
+                modelDownloadStatus = "离线英文模型已就绪";
+                renderCaptureState();
+                Toast.makeText(
+                        PackageActivity.this,
+                        "离线英文模型安装完成，现在可以开始录音并显示字幕",
+                        Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onFailed(String message) {
+                modelDownloadRunning = false;
+                modelDownloadStatus = "模型下载失败：" + message;
+                renderCaptureState();
+                Toast.makeText(PackageActivity.this, modelDownloadStatus, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void requestTranscription() {
@@ -708,30 +754,41 @@ public final class PackageActivity extends BaseActivity {
         SystemAudioTranscriber.Availability availability =
                 SystemAudioTranscriber.availability(this);
         if (availability == SystemAudioTranscriber.Availability.ON_DEVICE) {
-            startPreparedAudioSegment(capture, true, true);
+            startPreparedAudioSegment(
+                    capture, true, true, AudioRecordingService.ENGINE_ANDROID);
+        } else if (VoskModelManager.isInstalled(this)) {
+            startPreparedAudioSegment(
+                    capture, true, false, AudioRecordingService.ENGINE_VOSK);
         } else if (availability
                 == SystemAudioTranscriber.Availability.SYSTEM_MAY_USE_NETWORK) {
             new AlertDialog.Builder(this)
                     .setTitle("英文实时字幕可能联网")
                     .setMessage("这台手机没有向 App 提供可确认的离线识别器。选择实时字幕后，会议音频可能由当前系统语音服务处理；无论选择哪项，原始录音都会保存在 App 暂存区。")
                     .setNegativeButton("仅录音", (dialog, which) ->
-                            startPreparedAudioSegment(capture, false, false))
+                            startPreparedAudioSegment(
+                                    capture, false, false, AudioRecordingService.ENGINE_ANDROID))
                     .setPositiveButton("录音并显示字幕", (dialog, which) ->
-                            startPreparedAudioSegment(capture, true, false))
+                            startPreparedAudioSegment(
+                                    capture, true, false, AudioRecordingService.ENGINE_ANDROID))
                     .show();
         } else {
-            Toast.makeText(
-                    this,
-                    "当前系统不支持实时英文字幕，本段仍会正常录音",
-                    Toast.LENGTH_LONG).show();
-            startPreparedAudioSegment(capture, false, false);
+            new AlertDialog.Builder(this)
+                    .setTitle("需要离线英文模型")
+                    .setMessage("这台 vivo 没有向 App 提供系统语音识别服务。可以先下载约 40 MB 的英文模型；安装后字幕完全在手机本地生成，会议现场不需要网络。")
+                    .setNegativeButton("本次仅录音", (dialog, which) ->
+                            startPreparedAudioSegment(
+                                    capture, false, false, AudioRecordingService.ENGINE_ANDROID))
+                    .setPositiveButton("下载模型", (dialog, which) ->
+                            downloadOfflineEnglishModel())
+                    .show();
         }
     }
 
     private void startPreparedAudioSegment(
             CaptureSessionStore.CaptureBundle capture,
             boolean liveTranscription,
-            boolean onDevice) {
+            boolean onDevice,
+            String liveEngine) {
         try {
             File output = capture.nextAudioFile();
             Intent intent = new Intent(this, AudioRecordingService.class)
@@ -750,6 +807,7 @@ public final class PackageActivity extends BaseActivity {
                     .putExtra(AudioRecordingService.EXTRA_TITLE, item.title)
                     .putExtra(AudioRecordingService.EXTRA_LIVE_TRANSCRIPTION, liveTranscription)
                     .putExtra(AudioRecordingService.EXTRA_LIVE_ON_DEVICE, onDevice)
+                    .putExtra(AudioRecordingService.EXTRA_LIVE_ENGINE, liveEngine)
                     .putStringArrayListExtra(
                             AudioRecordingService.EXTRA_TRANSCRIPTION_BIASES,
                             new ArrayList<>(transcriptionBiases()));
@@ -882,7 +940,11 @@ public final class PackageActivity extends BaseActivity {
             boolean finalizing = ownRecording
                     && recordingState == AudioRecordingService.State.FINALIZING;
             recordButton.setEnabled(
-                    !exportRunning && !transcriptionRunning && !otherRecording && !finalizing);
+                    !exportRunning
+                            && !transcriptionRunning
+                            && !modelDownloadRunning
+                            && !otherRecording
+                            && !finalizing);
             recordButton.setAlpha(recordButton.isEnabled() ? 1f : 0.5f);
             if (ownRecording && recordingState == AudioRecordingService.State.RECORDING) {
                 recordButton.setText("暂停录音\n正在记录当前报告");
@@ -960,11 +1022,14 @@ public final class PackageActivity extends BaseActivity {
                 && (AudioRecordingService.state() == AudioRecordingService.State.RECORDING
                 || AudioRecordingService.state() == AudioRecordingService.State.PAUSED
                 || AudioRecordingService.state() == AudioRecordingService.State.FINALIZING);
-        if (liveRecording && !transcriptionRunning) {
+        if (modelDownloadRunning && !transcriptionRunning) {
+            transcriptionStatus.setText("正在准备离线字幕");
+            transcriptionPreview.setText(modelDownloadStatus);
+        } else if (liveRecording && !transcriptionRunning) {
             transcriptionStatus.setText(AudioRecordingService.liveStatus());
             String livePreview = AudioRecordingService.liveTranscriptPreview();
             transcriptionPreview.setText(livePreview.isEmpty()
-                    ? "正在等待系统返回英文字幕……"
+                    ? "正在等待英文字幕……"
                     : livePreview);
         } else if (!transcriptionRunning) {
             transcriptionStatus.setText(hasTranscript
@@ -972,23 +1037,51 @@ public final class PackageActivity extends BaseActivity {
                     : capabilityLabel());
             transcriptionPreview.setText(hasTranscript
                     ? transcript
-                    : "开始录音后可显示英文实时字幕；也可在结束后重新转写 M4A。");
+                    : idleTranscriptionHint());
         }
         boolean enabled = !transcriptionRunning
                 && !exportRunning
                 && !isCurrentCaptureRecording()
-                && audioFiles.length > 0;
+                && audioFiles.length > 0
+                && (SystemAudioTranscriber.availability(this)
+                == SystemAudioTranscriber.Availability.ON_DEVICE
+                || SystemAudioTranscriber.availability(this)
+                == SystemAudioTranscriber.Availability.SYSTEM_MAY_USE_NETWORK);
         transcriptionButton.setEnabled(enabled);
         transcriptionButton.setAlpha(enabled ? 1f : 0.45f);
         transcriptionButton.setText(transcriptionRunning
                 ? "正在转写…"
                 : (hasTranscript ? "重新转写已有录音" : "转写已有录音"));
+        if (offlineModelButton != null) {
+            boolean shouldOfferModel = SystemAudioTranscriber.availability(this)
+                    != SystemAudioTranscriber.Availability.ON_DEVICE
+                    && !VoskModelManager.isInstalled(this);
+            offlineModelButton.setVisibility(shouldOfferModel ? View.VISIBLE : View.GONE);
+            offlineModelButton.setEnabled(!modelDownloadRunning && !isCurrentCaptureRecording());
+            offlineModelButton.setAlpha(offlineModelButton.isEnabled() ? 1f : 0.45f);
+            offlineModelButton.setText(modelDownloadRunning
+                    ? modelDownloadStatus
+                    : "下载离线英文模型（约 40 MB）");
+        }
         if (transcriptMaterialStatus != null) {
             setPill(
                     transcriptMaterialStatus,
                     hasTranscript ? "已生成" : (transcriptionRunning ? "生成中" : "未生成"),
                     hasTranscript || transcriptionRunning);
         }
+    }
+
+    private String idleTranscriptionHint() {
+        if (VoskModelManager.isInstalled(this)) {
+            return "离线英文模型已就绪；开始录音后可直接显示英文字幕。";
+        }
+        SystemAudioTranscriber.Availability availability =
+                SystemAudioTranscriber.availability(this);
+        if (availability == SystemAudioTranscriber.Availability.ON_DEVICE
+                || availability == SystemAudioTranscriber.Availability.SYSTEM_MAY_USE_NETWORK) {
+            return "开始录音后可显示英文实时字幕；也可在结束后重新转写 M4A。";
+        }
+        return "当前 vivo 没有系统识别服务，请先下载离线英文模型。";
     }
 
     private void renderMediaList(File[] audioFiles, File[] imageFiles) {

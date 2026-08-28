@@ -10,7 +10,7 @@
     -> 海报检索 -> 海报包
 ```
 
-当前版本号为 `0.8.0-live-english-test`。它已经可以生成包含真实录音、PPT / 海报照片、现场备注和校验信息的最小报告包，也可以直接从手机文件选择器导入会议 JSON。本版把麦克风 PCM 同时送入 AAC 录音编码器和 Android 13+ 系统英文识别器，用于真机验证“完整录音 + 英文实时字幕”；OCR 和 AI 整理仍由后续电脑端流程完成。
+当前版本号为 `0.9.0-offline-english-test`。它已经可以生成包含真实录音、PPT / 海报照片、现场备注和校验信息的最小报告包，也可以直接从手机文件选择器导入会议 JSON。本版把麦克风 PCM 同时送入 AAC 录音编码器和英文识别器，并在 vivo 未提供 Android 系统识别服务时改用 App 自带的 Vosk 离线引擎；OCR 和 AI 整理仍由后续电脑端流程完成。
 
 ## 已连通
 
@@ -39,6 +39,7 @@
 - 报告录音支持开始、暂停、继续、结束和追加片段，使用前台麦克风服务保持录音。
 - 录音服务只占用一次麦克风，将 16 kHz 单声道 PCM 非阻塞地分流给 AAC/M4A 编码器和英文实时识别器；字幕处理缓慢或失败不会阻塞录音。
 - Android 13+ 录音时可显示 `en-US` 系统英文识别的临时结果和已确认分段；识别器异常时最多自动恢复三次，录音继续保存。
+- 若手机没有可用的 Android `RecognitionService`，页面可从 Vosk 官方地址下载约 40 MB 的 `vosk-model-small-en-us-0.15`。模型保存在 App 私有免备份目录，安装后实时字幕完全离线运行。
 - 结束录音后将实时英文结果保存为 `transcript/transcript.txt + transcription.json`；不完整结果在元数据中标为 `partial`。
 - Android 13+ 仍可将已录制的 M4A 解码为 PCM 音频流，重新交给手机系统英文识别服务；优先选择可确认的本机识别，只有可能联网的系统识别时会在发起前明确二次确认。
 - 手机转写成功后保存 `transcript/transcript.txt + transcription.json`，并随报告包导出；系统服务未接收完整音频时不会标记为完整逐字稿。
@@ -77,6 +78,9 @@ app/src/main/java/com/higs/conferencerecorder/
     M4aPcmStreamer.java        # 将 App 录制的单声道 M4A 解码为 PCM 流
     SystemAudioTranscriber.java # 调用 Android SpeechRecognizer 转写已有录音
     LiveSystemTranscriber.java # 非阻塞接收实时 PCM 并生成英文系统字幕
+    LiveTranscriber.java       # 系统与离线识别器共用的实时音频接口
+    VoskLiveTranscriber.java   # 消费同一 PCM 的本地 Vosk 英文流式识别
+    VoskModelManager.java      # HTTPS 下载、安全解压并校验离线英文模型
   ArchitectureActivity.java    # 初版边界说明
   StorageAccessActivity.java   # 同步目录授权与连接测试
 ```
@@ -128,14 +132,15 @@ ConferenceRecorder/<conference-id>/talks/<item-id>/packages/package-<timestamp>/
 
 只有全部文件成功写入后才创建 `READY`。录音和照片在导出前保留于 Android App 私有外部目录；卸载 App 会清除此暂存区，因此完成测试后应及时导出。
 
-手机系统转写是厂商能力检测型功能，不内置大型 ASR 模型。Android 公开接口虽然支持将实时或已有 PCM 音频交给识别服务，但 vivo / OriginOS 的系统实现是否支持长音频分段识别，必须在 V2359A 真机上验证。实时字幕失败只改变字幕状态，不应影响 M4A；若系统识别器连续失败，可在录音结束后使用“转写已有录音”兜底。
+Android 系统转写是厂商能力检测型功能；V2359A 真机已确认没有向本 App 暴露可用的 `RecognitionService`。因此 0.9.0 增加可下载的 Vosk 小型英文模型作为离线主兜底：模型约 40 MB，运行时预计占用约 300 MB 内存，安装前要求至少 150 MB 可用存储。无论使用系统还是 Vosk，字幕失败都只改变字幕状态，不应影响 M4A。
 
 ## 英文实时字幕真机验收
 
-1. 安装 debug APK，打开一场报告并开始录音；若系统识别可能联网，明确选择“录音并显示字幕”。
-2. 先播放 10 分钟英文科研报告，确认页面持续出现英文、暂停/继续有效、结束后 M4A 和逐字稿均存在。
-3. 再连续运行 45–60 分钟，期间锁屏、回到 App、打开系统相机拍照，并观察字幕恢复、手机发热和电量。
-4. 分别在联网和断网环境测试。断网转写失败可以接受，但原始 M4A 不得中断或变成空文件。
+1. 安装 debug APK，进入报告页。如果显示 vivo 不提供系统识别服务，先点击“下载离线英文模型（约 40 MB）”，等待安装完成。
+2. 打开一场报告并开始录音；已安装离线模型时会直接在手机本地生成字幕，系统识别可能联网时仍会明确询问。
+3. 先播放 10 分钟英文科研报告，确认页面持续出现英文、暂停/继续有效、结束后 M4A 和逐字稿均存在。
+4. 再连续运行 45–60 分钟，期间锁屏、回到 App、打开系统相机拍照，并观察字幕恢复、手机发热和电量。
+5. 安装模型后关闭 VPN、Wi-Fi 和移动数据再测试；离线字幕应继续工作，原始 M4A 不得中断或变成空文件。
 
 ## 本地构建
 
