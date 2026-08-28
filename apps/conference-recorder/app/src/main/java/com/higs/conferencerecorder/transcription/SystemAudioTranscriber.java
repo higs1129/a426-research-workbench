@@ -124,7 +124,7 @@ public final class SystemAudioTranscriber implements RecognitionListener, AutoCl
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US");
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, onDevice);
         intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, readPipe);
@@ -334,9 +334,9 @@ public final class SystemAudioTranscriber implements RecognitionListener, AutoCl
             case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                 return "系统识别器未接收到录音数据";
             case SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED:
-                return "系统识别器不支持中文";
+                return "系统识别器不支持英语";
             case SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE:
-                return "系统中文识别模型尚未就绪";
+                return "系统英语识别模型尚未就绪";
             case SpeechRecognizer.ERROR_TOO_MANY_REQUESTS:
                 return "系统识请求过多，请稍后重试";
             default:

@@ -97,6 +97,12 @@ public final class PackageActivity extends BaseActivity {
     private final BroadcastReceiver recordingReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent.getBooleanExtra("live_update", false)) {
+                CaptureSessionStore.CaptureBundle capture = captureBundle(false);
+                File[] audioFiles = capture == null ? new File[0] : capture.audioFiles();
+                renderTranscriptionState(capture, audioFiles);
+                return;
+            }
             renderCaptureState();
             renderExportState();
         }
@@ -346,7 +352,7 @@ public final class PackageActivity extends BaseActivity {
     private LinearLayout buildTranscriptionCard() {
         LinearLayout card = UiKit.card(this);
         LinearLayout heading = UiKit.horizontal(this);
-        heading.addView(UiKit.text(this, "手机转写", 16,
+        heading.addView(UiKit.text(this, "英文实时字幕", 16,
                 UiKit.TEXT_PRIMARY, true), UiKit.weight(1f));
         transcriptionStatus = UiKit.text(
                 this, capabilityLabel(), 12, UiKit.TEXT_SECONDARY, false);
@@ -355,7 +361,7 @@ public final class PackageActivity extends BaseActivity {
 
         transcriptionPreview = UiKit.text(
                 this,
-                "结束录音后，可将已录的 M4A 交给手机系统识别。",
+                "开始录音后，这里会滚动显示系统识别出的英文；录音始终独立保存。",
                 13,
                 UiKit.TEXT_SECONDARY,
                 false);
@@ -366,7 +372,7 @@ public final class PackageActivity extends BaseActivity {
         previewParams.topMargin = UiKit.dp(this, 9);
         card.addView(transcriptionPreview, previewParams);
 
-        transcriptionButton = UiKit.button(this, "转写已有录音", false);
+        transcriptionButton = UiKit.button(this, "重新转写已有录音", false);
         transcriptionButton.setOnClickListener(view -> requestTranscription());
         card.addView(transcriptionButton);
         return card;
@@ -375,9 +381,9 @@ public final class PackageActivity extends BaseActivity {
     private String capabilityLabel() {
         switch (SystemAudioTranscriber.availability(this)) {
             case ON_DEVICE:
-                return "本机识别可用";
+                return "本机英文识别可用";
             case SYSTEM_MAY_USE_NETWORK:
-                return "系统识别可用";
+                return "系统英文识别可用";
             case ANDROID_TOO_OLD:
                 return "需要 Android 13+";
             default:
@@ -446,7 +452,7 @@ public final class PackageActivity extends BaseActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         renderCaptureState();
         transcriptionStatus.setText(onDevice ? "正在使用本机识别" : "正在使用系统识别");
-        transcriptionPreview.setText("正在准备录音…");
+        transcriptionPreview.setText("正在准备英文录音…");
 
         audioTranscriber = new SystemAudioTranscriber(
                 this,
@@ -503,10 +509,11 @@ public final class PackageActivity extends BaseActivity {
         addBias(values, item.title);
         addBias(values, item.speaker);
         addBias(values, item.affiliation);
-        addBias(values, "微腔光子学");
-        addBias(values, "铌酸锂");
-        addBias(values, "光学品质因子");
-        addBias(values, "受激布里渊散射");
+        addBias(values, "microcavity photonics");
+        addBias(values, "lithium niobate");
+        addBias(values, "optical quality factor");
+        addBias(values, "stimulated Brillouin scattering");
+        addBias(values, "whispering gallery mode");
         return values;
     }
 
@@ -668,6 +675,8 @@ public final class PackageActivity extends BaseActivity {
             sendRecordingAction(AudioRecordingService.ACTION_PAUSE);
         } else if (state == AudioRecordingService.State.PAUSED) {
             sendRecordingAction(AudioRecordingService.ACTION_RESUME);
+        } else if (state == AudioRecordingService.State.FINALIZING) {
+            Toast.makeText(this, "正在保存录音和最后的英文字幕", Toast.LENGTH_SHORT).show();
         } else {
             requestAudioAndStart();
         }
@@ -696,18 +705,58 @@ public final class PackageActivity extends BaseActivity {
     private void startNewAudioSegment() {
         CaptureSessionStore.CaptureBundle capture = captureBundle(true);
         if (capture == null) return;
+        SystemAudioTranscriber.Availability availability =
+                SystemAudioTranscriber.availability(this);
+        if (availability == SystemAudioTranscriber.Availability.ON_DEVICE) {
+            startPreparedAudioSegment(capture, true, true);
+        } else if (availability
+                == SystemAudioTranscriber.Availability.SYSTEM_MAY_USE_NETWORK) {
+            new AlertDialog.Builder(this)
+                    .setTitle("英文实时字幕可能联网")
+                    .setMessage("这台手机没有向 App 提供可确认的离线识别器。选择实时字幕后，会议音频可能由当前系统语音服务处理；无论选择哪项，原始录音都会保存在 App 暂存区。")
+                    .setNegativeButton("仅录音", (dialog, which) ->
+                            startPreparedAudioSegment(capture, false, false))
+                    .setPositiveButton("录音并显示字幕", (dialog, which) ->
+                            startPreparedAudioSegment(capture, true, false))
+                    .show();
+        } else {
+            Toast.makeText(
+                    this,
+                    "当前系统不支持实时英文字幕，本段仍会正常录音",
+                    Toast.LENGTH_LONG).show();
+            startPreparedAudioSegment(capture, false, false);
+        }
+    }
+
+    private void startPreparedAudioSegment(
+            CaptureSessionStore.CaptureBundle capture,
+            boolean liveTranscription,
+            boolean onDevice) {
         try {
             File output = capture.nextAudioFile();
             Intent intent = new Intent(this, AudioRecordingService.class)
                     .setAction(AudioRecordingService.ACTION_START)
                     .putExtra(AudioRecordingService.EXTRA_OUTPUT_PATH, output.getAbsolutePath())
+                    .putExtra(
+                            AudioRecordingService.EXTRA_TRANSCRIPT_PATH,
+                            capture.transcriptFile().getAbsolutePath())
+                    .putExtra(
+                            AudioRecordingService.EXTRA_TRANSCRIPT_METADATA_PATH,
+                            capture.transcriptMetadataFile().getAbsolutePath())
                     .putExtra(AudioRecordingService.EXTRA_CAPTURE_KEY, captureKey())
                     .putExtra(AudioRecordingService.EXTRA_CONFERENCE_ID, conference.id)
                     .putExtra(AudioRecordingService.EXTRA_SESSION_ID, session == null ? "" : session.id)
                     .putExtra(AudioRecordingService.EXTRA_ITEM_ID, item.id)
-                    .putExtra(AudioRecordingService.EXTRA_TITLE, item.title);
+                    .putExtra(AudioRecordingService.EXTRA_TITLE, item.title)
+                    .putExtra(AudioRecordingService.EXTRA_LIVE_TRANSCRIPTION, liveTranscription)
+                    .putExtra(AudioRecordingService.EXTRA_LIVE_ON_DEVICE, onDevice)
+                    .putStringArrayListExtra(
+                            AudioRecordingService.EXTRA_TRANSCRIPTION_BIASES,
+                            new ArrayList<>(transcriptionBiases()));
             startForegroundService(intent);
-            captureHint.setText("正在启动录音；打开相机拍摄时，前台录音服务会继续运行。");
+            captureHint.setText(liveTranscription
+                    ? "正在启动录音和英文实时字幕；打开相机时录音会继续。"
+                    : "正在启动录音；打开相机拍摄时录音会继续运行。");
         } catch (RuntimeException error) {
             Toast.makeText(this, "无法准备录音：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
@@ -830,7 +879,10 @@ public final class PackageActivity extends BaseActivity {
         if (recordButton != null) {
             boolean otherRecording = recordingState != AudioRecordingService.State.IDLE
                     && !captureKey().equals(AudioRecordingService.captureKey());
-            recordButton.setEnabled(!exportRunning && !transcriptionRunning && !otherRecording);
+            boolean finalizing = ownRecording
+                    && recordingState == AudioRecordingService.State.FINALIZING;
+            recordButton.setEnabled(
+                    !exportRunning && !transcriptionRunning && !otherRecording && !finalizing);
             recordButton.setAlpha(recordButton.isEnabled() ? 1f : 0.5f);
             if (ownRecording && recordingState == AudioRecordingService.State.RECORDING) {
                 recordButton.setText("暂停录音\n正在记录当前报告");
@@ -838,6 +890,9 @@ public final class PackageActivity extends BaseActivity {
             } else if (ownRecording && recordingState == AudioRecordingService.State.PAUSED) {
                 recordButton.setText("继续录音\n当前片段已暂停");
                 recordState.setText("录音已暂停");
+            } else if (finalizing) {
+                recordButton.setText("正在保存\n请稍候");
+                recordState.setText("正在整理英文字幕");
             } else if (audioFiles.length > 0) {
                 recordButton.setText(getString(R.string.capture_append_recording, audioFiles.length));
                 recordState.setText(String.format(
@@ -846,7 +901,10 @@ public final class PackageActivity extends BaseActivity {
                 recordButton.setText("开始录音\n支持暂停和继续");
                 recordState.setText("准备记录");
             }
-            stopButton.setEnabled(!exportRunning && !transcriptionRunning && ownRecording);
+            stopButton.setEnabled(!exportRunning
+                    && !transcriptionRunning
+                    && ownRecording
+                    && recordingState != AudioRecordingService.State.FINALIZING);
             stopButton.setAlpha(stopButton.isEnabled() ? 1f : 0.45f);
         }
         photoButton.setEnabled(!exportRunning && !transcriptionRunning);
@@ -898,13 +956,23 @@ public final class PackageActivity extends BaseActivity {
         if (transcriptionButton == null || transcriptionStatus == null) return;
         boolean hasTranscript = TranscriptStore.hasTranscript(capture);
         String transcript = hasTranscript ? TranscriptStore.read(capture) : "";
-        if (!transcriptionRunning) {
+        boolean liveRecording = isCurrentCaptureRecording()
+                && (AudioRecordingService.state() == AudioRecordingService.State.RECORDING
+                || AudioRecordingService.state() == AudioRecordingService.State.PAUSED
+                || AudioRecordingService.state() == AudioRecordingService.State.FINALIZING);
+        if (liveRecording && !transcriptionRunning) {
+            transcriptionStatus.setText(AudioRecordingService.liveStatus());
+            String livePreview = AudioRecordingService.liveTranscriptPreview();
+            transcriptionPreview.setText(livePreview.isEmpty()
+                    ? "正在等待系统返回英文字幕……"
+                    : livePreview);
+        } else if (!transcriptionRunning) {
             transcriptionStatus.setText(hasTranscript
                     ? "已生成 " + transcript.length() + " 字"
                     : capabilityLabel());
             transcriptionPreview.setText(hasTranscript
                     ? transcript
-                    : "结束录音后，可将已录的 M4A 交给手机系统识别。");
+                    : "开始录音后可显示英文实时字幕；也可在结束后重新转写 M4A。");
         }
         boolean enabled = !transcriptionRunning
                 && !exportRunning
@@ -914,7 +982,7 @@ public final class PackageActivity extends BaseActivity {
         transcriptionButton.setAlpha(enabled ? 1f : 0.45f);
         transcriptionButton.setText(transcriptionRunning
                 ? "正在转写…"
-                : (hasTranscript ? "重新转写" : "转写已有录音"));
+                : (hasTranscript ? "重新转写已有录音" : "转写已有录音"));
         if (transcriptMaterialStatus != null) {
             setPill(
                     transcriptMaterialStatus,

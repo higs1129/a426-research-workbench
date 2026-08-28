@@ -50,7 +50,7 @@ public final class TranscriptStore {
             metadata.put("schemaVersion", 1);
             metadata.put("engine", "android.speech.SpeechRecognizer");
             metadata.put("engineMode", result.engineMode);
-            metadata.put("language", "zh-CN");
+            metadata.put("language", "en-US");
             metadata.put("status", "complete");
             metadata.put("createdAt", OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             metadata.put("characters", result.text.trim().length());
@@ -64,10 +64,82 @@ public final class TranscriptStore {
         }
     }
 
+    public static void saveLive(
+            File transcriptFile,
+            File metadataFile,
+            String text,
+            String engineMode,
+            String status,
+            File sourceAudio,
+            int segmentCount) throws IOException {
+        String cleanText = text == null ? "" : text.trim();
+        if (cleanText.isEmpty()) throw new IOException("英文实时字幕为空");
+        String previousText = readUtf8(transcriptFile);
+        String combinedText = previousText.isEmpty()
+                ? cleanText : previousText + "\n" + cleanText;
+        int combinedSegments = segmentCount;
+        String combinedStatus = status;
+        JSONArray files = new JSONArray();
+        java.util.LinkedHashSet<String> sourceNames = new java.util.LinkedHashSet<>();
+        String previousMetadata = readUtf8(metadataFile);
+        if (!previousMetadata.isEmpty()) {
+            try {
+                JSONObject previous = new JSONObject(previousMetadata);
+                combinedSegments += previous.optInt("segments", 0);
+                if ("partial".equals(previous.optString("status"))) combinedStatus = "partial";
+                JSONArray previousFiles = previous.optJSONArray("sourceAudio");
+                if (previousFiles != null) {
+                    for (int index = 0; index < previousFiles.length(); index++) {
+                        String name = previousFiles.optString(index, "");
+                        if (!name.isEmpty()) sourceNames.add(name);
+                    }
+                }
+            } catch (JSONException ignored) {
+                combinedStatus = "partial";
+            }
+        }
+        if (sourceAudio != null) sourceNames.add(sourceAudio.getName());
+        for (String name : sourceNames) files.put(name);
+        writeUtf8(transcriptFile, combinedText + "\n");
+        JSONObject metadata = new JSONObject();
+        try {
+            metadata.put("schemaVersion", 1);
+            metadata.put("engine", "android.speech.SpeechRecognizer");
+            metadata.put("engineMode", engineMode);
+            metadata.put("language", "en-US");
+            metadata.put("status", combinedStatus);
+            metadata.put("createdAt", OffsetDateTime.now().format(
+                    DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            metadata.put("characters", combinedText.length());
+            metadata.put("segments", combinedSegments);
+            metadata.put("sourceAudio", files);
+            writeUtf8(metadataFile, metadata.toString(2) + "\n");
+        } catch (JSONException impossible) {
+            throw new IOException("无法生成英文实时转写元数据", impossible);
+        }
+    }
+
     private static void writeUtf8(File target, String value) throws IOException {
         try (FileOutputStream output = new FileOutputStream(target, false)) {
             output.write(value.getBytes(StandardCharsets.UTF_8));
             output.getFD().sync();
+        }
+    }
+
+    private static String readUtf8(File source) {
+        if (source == null || !source.isFile() || source.length() <= 0L
+                || source.length() > Integer.MAX_VALUE) return "";
+        byte[] buffer = new byte[(int) source.length()];
+        try (FileInputStream input = new FileInputStream(source)) {
+            int offset = 0;
+            while (offset < buffer.length) {
+                int read = input.read(buffer, offset, buffer.length - offset);
+                if (read < 0) break;
+                offset += read;
+            }
+            return new String(buffer, 0, offset, StandardCharsets.UTF_8).trim();
+        } catch (IOException error) {
+            return "";
         }
     }
 }

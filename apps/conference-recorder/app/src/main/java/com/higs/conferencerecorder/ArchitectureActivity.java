@@ -8,7 +8,7 @@ public final class ArchitectureActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LinearLayout content = createScreen("初版架构", "先验证信息结构，再接采集能力", true);
+        LinearLayout content = createScreen("现场采集架构", "录音优先，英文字幕允许降级", true);
 
         content.addView(UiKit.sectionTitle(this, "信息层级"));
         LinearLayout hierarchy = UiKit.card(this);
@@ -41,14 +41,14 @@ public final class ArchitectureActivity extends BaseActivity {
         ready.addView(check("本机快速备注可保存"));
         ready.addView(check("可选择 Synology 本地同步根目录"));
         ready.addView(check("可导出 manifest、现场备注和 READY 测试包"));
+        ready.addView(check("前台麦克风录音、拍照与自动归包"));
+        ready.addView(check("Android 13+ 英文实时字幕和录音后重新转写"));
         content.addView(ready);
 
         content.addView(UiKit.sectionTitle(this, "明确没有做的部分"));
         LinearLayout pending = UiKit.card(this);
         pending.setBackground(UiKit.roundRect(UiKit.WARNING_SOFT, 18, this));
-        pending.addView(pending("麦克风录音与录音中断恢复"));
-        pending.addView(pending("相机拍 PPT / 海报与自动归包"));
-        pending.addView(pending("实时或准实时语音转写"));
+        pending.addView(pending("V2359A 长时间英文字幕真机稳定性验证"));
         pending.addView(pending("群晖到达确认、W: 扫描与完整性校验"));
         pending.addView(pending("会议手册 PDF 的完整导入与版本 diff"));
         content.addView(pending);

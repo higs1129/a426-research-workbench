@@ -221,7 +221,11 @@ public final class PackageExporter {
             files.put("transcriptionMetadata", hasTranscriptMetadata
                     ? "transcript/transcription.json" : JSONObject.NULL);
             manifest.put("files", files);
-            manifest.put("transcriptionStatus", hasTranscript ? "complete" : "not_generated");
+            manifest.put(
+                    "transcriptionStatus",
+                    hasTranscript
+                            ? transcriptionStatus(capture, hasTranscriptMetadata)
+                            : "not_generated");
             return manifest.toString(2) + "\n";
         } catch (JSONException error) {
             throw new IOException("无法生成报告包清单", error);
@@ -261,6 +265,28 @@ public final class PackageExporter {
         if (audioFiles.length > 0) return "audio_only";
         if (imageFiles.length > 0) return "images_only";
         return "metadata_and_note_only";
+    }
+
+    private static String transcriptionStatus(
+            CaptureSessionStore.CaptureBundle capture,
+            boolean hasMetadata) {
+        if (!hasMetadata || capture == null) return "complete";
+        File metadata = capture.transcriptMetadataFile();
+        if (metadata.length() <= 0L || metadata.length() > Integer.MAX_VALUE) return "complete";
+        byte[] buffer = new byte[(int) metadata.length()];
+        try (FileInputStream input = new FileInputStream(metadata)) {
+            int offset = 0;
+            while (offset < buffer.length) {
+                int read = input.read(buffer, offset, buffer.length - offset);
+                if (read < 0) break;
+                offset += read;
+            }
+            JSONObject value = new JSONObject(new String(
+                    buffer, 0, offset, java.nio.charset.StandardCharsets.UTF_8));
+            return "partial".equals(value.optString("status")) ? "partial" : "complete";
+        } catch (IOException | JSONException ignored) {
+            return "complete";
+        }
     }
 
     private static JSONArray fileEntries(String folder, File[] sourceFiles) throws IOException {

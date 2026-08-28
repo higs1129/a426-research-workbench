@@ -109,6 +109,21 @@ public final class CaptureSessionStore {
         }
     }
 
+    public static boolean isManagedTranscriptFile(
+            Context context, File file, String expectedName) {
+        File captureRoot = context.getExternalFilesDir("captures");
+        if (captureRoot == null || file == null || expectedName == null) return false;
+        try {
+            File parent = file.getParentFile();
+            return parent != null
+                    && isInside(captureRoot, file)
+                    && "transcript".equals(parent.getName())
+                    && expectedName.equals(file.getName());
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
     private static SharedPreferences preferences(Context context) {
         return context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE);
     }
