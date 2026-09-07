@@ -54,4 +54,4 @@ Record:
 - reference material to continue or deliberately depart from;
 - choices still deferred to the wireframe.
 
-Confirm the brief before creating the editable HTML wireframe. A confirmed style brief authorizes a low-fidelity layout, not formal poster production.
+Confirm the brief before creating the editable HTML wireframe. A confirmed style brief authorizes schematic scientific placeholders inside a production-binding layout-and-style wireframe; it does not authorize formal poster production.

@@ -37,6 +37,8 @@ def build_figure(data, profile):
 
 The shared renderer enforces the selected profile's physical dimensions and common typography. Task code may set scientifically meaningful colors, labels, ranges, legends, annotations, and line roles, but should not duplicate shared font, size, grid, interaction, or HTML defaults.
 
+For `Axes.scatter` and a `Line2D` with a marker, the profile default marker diameter is `0.5 × tickPt`. Matplotlib's `lines.markersize` and the default scatter area are initialized from that diameter; an explicit `markersize=` or `s=` in task code remains authoritative. The editable HTML stores one marker-diameter presentation value in points and exposes it separately from plot font size. A point-line series retains both its connecting path and its markers during interactive redraw.
+
 The shared automatic locator is used only when the task leaves an axis on Matplotlib's default `AutoLocator`. An explicit `MultipleLocator` or `FixedLocator` is authoritative: the renderer preserves it in the initial SVG and serializes a fixed-step or fixed-values policy so browser zoom and pan redraw the same intended ticks. Use this for requirements such as an exact `0.2` y-axis interval; do not approximate a fixed interval through `MaxNLocator`.
 
 ## Render command
@@ -78,17 +80,19 @@ The renderer sets `svg.fonttype = "none"`, so ordinary title, label, tick, and l
 - the authoritative data series needed for hover and viewport changes;
 - exactly one delivery profile;
 - the shared interaction runtime and Matplotlib bridge;
-- visible box zoom, pan, reset, hover readout, compact presentation controls, an `Edit layout` mode for whole-bounds selection and movement of the title, axis labels, legend, and collective x/y numeric tick-label groups without moving tick marks or scientific geometry, bounded layout undo, and clean SVG export.
+- visible box zoom, pan, reset, hover readout, compact presentation controls including independently editable marker diameter for scatter and point-line series, an `Edit layout` mode for whole-bounds selection and movement of the title, axis labels, legend, and collective x/y numeric tick-label groups without moving tick marks or scientific geometry, bounded layout undo, and clean SVG export.
 
 The selected profile also supplies a compact `0.28 em` major-tick-to-number gap, a `0.25 em` top-legend-to-axis gap, a `0.25 em` title-to-top-legend gap, and a small `0.4 em` top safety reserve for browser font-metric differences. The renderer measures the Matplotlib title and legend text bounding boxes after the canvas draw. When a horizontal top legend collides with the title, it records a deterministic layout offset that places the title above the legend and, when needed, reduces the axes height just enough to reserve the top band; if the fixed canvas cannot contain that resolved stack, generation stops with an actionable error instead of silently emitting an overlap. Because browser font metrics can differ slightly from Matplotlib, the bridge performs one bounded `getBoundingClientRect()` check and adds only the residual title offset required by the same profile gap. This automatic correction is disabled as soon as the user manually moves the title or legend, so direct editing remains authoritative. The bridge also reuses the profile tokens and serialized tick policy during interactive redraw instead of introducing separate browser-only defaults.
 
 The output is self-contained and has no runtime dependency on the Skill directory or a network connection. The task-local Python generator remains the reproducible maintenance entry point.
 
+For reports, bundle this generated HTML through [report-component.md](report-component.md). Initial tick values and formatted labels are captured from the confirmed Matplotlib axes; the browser component retains them on first display and reset. It handles all report display modes and exports the rendered current SVG with the semantic model. Portable save embeds current labels, styling, layout offsets and view range. Custom numeric formatters, nonlinear axes and unsupported marker/data encodings stop generation with a capability message.
+
 During ordinary figure production, validate the generated file with cheap structural and numeric assertions and stop. Do not open a browser for a generic visual pass. Use targeted browser assertions only when the user requests visual validation, a deterministic check exposes an unresolved layout risk, a complex/custom figure requires it, or this shared renderer is being developed.
 
 ## Fast-path failure behavior
 
-Stop and use the custom SVG route when the renderer reports multiple axes, an unsupported artist type, or a scale/interaction requirement outside this contract. Do not force a complex figure through the standard bridge, and do not silently rasterize unsupported scientific geometry.
+When the renderer reports an unsupported feature, explain the missing capability and obtain confirmation for a custom adapter or extension. Continue with one adapter for all views once it meets the agreed requirements.
 
 ## Representative test
 

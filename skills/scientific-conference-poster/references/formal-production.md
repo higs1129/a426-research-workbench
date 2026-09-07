@@ -1,83 +1,56 @@
-# Formal poster production and release review
+# Formal poster production
 
-Read this reference only after the current editable HTML wireframe has been re-read, summarized as a layout contract, and explicitly approved for formal production.
+Read this reference only after the current editable HTML wireframe has been reopened and explicitly approved.
 
-## Default output
+## One-file output
 
-Create one formal editable HTML file. Keep CSS, poster text, generated SVG or DOM figures, editing state, and necessary metadata inside that HTML when practical. Reuse authoritative input assets without creating duplicate derived files unless embedding is required for the one-file HTML deliverable.
+Create one formal editable HTML file by copying or versioning the approved wireframe. Do not automatically produce PNG previews, PDF, PPTX, SVG sidecars, layout JSON, or Markdown notes.
 
-Do not automatically generate PNG previews, normal/wide screenshot pairs, PDF exports, PPTX files, layout JSON, Markdown production notes, or other sidecars. Perform browser rendering and screenshot checks in an isolated temporary directory without copying the QA artifacts into the task directory.
+## In-place replacement contract
 
-If the user explicitly requests a non-HTML deliverable, generate only the requested format and variants. If conference or printer rules appear to require PDF or another format but the user has not requested it, report the requirement and ask before generating it.
+- Preserve the approved production-bound DOM/CSS scaffold and `data-layout-id` membership.
+- Replace provisional text and figure placeholders inside their existing wrappers.
+- Preserve section bands, numbering, reading order, evidence groups, typography tokens, spacing rhythm, and major geometry.
+- A generator may locate ids and replace contents; it may not create a new page grid or reinterpret the wireframe.
+- If markers are missing or editor-only borders are ambiguous, correct and refreeze the wireframe before production.
+- If real content cannot remain readable in the slot, return to the wireframe instead of shrinking type or silently resizing sections.
 
-## Build from the approved contract
+## Scientific figure replacement
 
-- Read and apply [poster-visual-system.md](poster-visual-system.md) as the default production contract unless the approved style brief records an explicit override.
-- Use the confirmed accepted abstract title exactly, allowing only layout line breaks and whitespace normalization.
-- Represent the presenter within the author list using the visual-system red, bold, underlined treatment; preserve author order, affiliation mapping, and authorship markers from the source.
-- Read [figure-extraction-and-placement.md](figure-extraction-and-placement.md) before cropping, masking, or extracting any scientific image from a composite source.
-- Preserve the approved panel order, relative prominence, and central message.
-- Use authoritative local material and keep source locations traceable.
-- Invoke `scientific-plotting` for every new or revised scientific chart.
-- Distinguish raw data, processed data, fits, models, annotations, and proposed applications.
-- Preserve meaningful image crops and aspect ratios; confirm all four source boundaries before placement and keep axes, scale bars, legends, plot boxes, and required annotations complete.
-- Keep author, affiliation, citation, funding, logo, contact, and permission details exact.
-- Keep unresolved items visibly in the production record, not as plausible invented poster text.
+Obtain a standard semantic SVG from `scientific-plotting` for every quantitative module. Inline it and adapt it with the poster slot adapter. Preserve figure-model metadata and exact/approximate source markers. Do not use screenshots or raster crops for quantitative data.
 
-## HTML profile
+The poster adapter may change plot-box aspect, margins, type/stroke/tick tokens, legend and annotation placement, and module gaps. It must recalculate internal geometry from semantic groups/model coordinates and must not apply non-uniform scaling to the whole SVG.
 
-- Declare the physical page size and orientation with print CSS.
-- Express final poster typography in physical units such as `mm` or an equivalent calibrated system, and verify the effective printed sizes against the visual-system minima. Do not rely on browser zoom to make undersized text appear acceptable.
-- Use at least `font-weight: 400` for native poster text and `700–800` for key information. Keep native prose, captions, and affiliations black; express hierarchy through size, weight, spacing, and placement. Audit computed sizes against both the physical minima and author-anchored ratios; use the larger required value.
-- Keep title, authors, affiliations, contact, presenter details, and required marks as one visually contiguous header block. Give each affiliation one full-width row. Set author-to-affiliation spacing near one author-size `em`, affiliation-row spacing near `0.5em`, and the bottom gap below the affiliation block near `0.5–0.75em` of the affiliation size.
-- Size the header and subsequent page rows from content using normal flow or content-sized grid rows. Reflow all later sections after affiliation changes; fixed heights, distributed flex space, and retained absolute positions must not leave an empty header band.
-- Use the semantic spacing rhythm from the visual system. The local gap between primary information and its secondary explanation is visibly larger than spacing within the secondary group, while the surrounding container remains compact. Treat a blank band larger than two body line heights as intentional only when it marks a major section transition.
-- Use an open page without an outer frame. Group sections and figures through alignment, whitespace, headings, and the minimum local dividers needed for the reading path. Keep ordinary enclosing-border depth to one level; any used enclosure has square corners and no shadow.
-- Give each figure at least half a body-text size of clearance on all four sides from poster dividers and neighboring elements.
-- Use local assets and provide a clean print mode without editor controls.
-- Prefer SVG for regenerated data plots and vector diagrams when practical.
-- Verify that referenced local assets exist and that no accidental remote dependency is required for printing.
-- If visual editing controls are included, keep their state separate from scientific data and ensure exported or saved layout can be reopened.
-- Mark key elements with stable semantic roles such as `data-role="poster-title"`, `data-role="author-list"`, `data-role="presenter"`, `data-role="affiliations"`, and `data-role="figure-region"` so source and layout checks can target the intended elements.
-- Inspect the actual page through a local-only browser workflow at normal zoom and in print preview.
-- Keep test screenshots and print-preview captures outside the task directory unless the user explicitly requests them as deliverables.
+For each quantitative slot, pass its frozen physical width, height, and poster base token `B` to the adapter. The output `viewBox` numbers must equal the slot dimensions in millimetres so one SVG user unit equals one millimetre. Treat slot capacity and readable type as independent constraints: resize/reflow the data region when the slot changes, and revise the wireframe when the approved `B` cannot fit. Do not use `non-scaling-stroke`.
 
-## Explicit non-HTML requests
+Use proportional placement for photographs, micrographs, and visual assets without a coordinate model. Each figure gets clear space on all four sides and must not touch headings, dividers, captions, or adjacent modules.
 
-- For PNG, confirm the requested viewport, crop, scale, and whether HTML should also be delivered. Generate one image unless multiple views are explicitly requested.
-- For PDF, preserve the approved physical page size and inspect the exported PDF independently.
-- For editable PPTX, keep text, shapes, figures, and logos as separate native objects where practical; do not call a flattened poster image editable.
-- For LaTeX, use it only when explicitly requested or when an established user-provided source must be maintained.
+## Poster visual rules
 
-## Release review
+- Use the accepted abstract title exactly.
+- Mark the presenter in the author list with red, bold, underlined text.
+- Put one affiliation on each line; keep approximately one author-font-size gap before affiliations, about `0.5em` between affiliation lines, and a compact gap below the affiliation block.
+- Keep native text black and at least normal weight; use size, weight, and spacing for hierarchy.
+- Keep the active palette to black, red, blue, and green unless an approved venue/brand exception applies.
+- Make the local gap between primary and secondary information larger than spacing inside the secondary group.
+- Use a flat page without an outer frame or repeated nested boxes. Use square corners for necessary enclosure.
+- Keep editor controls hidden in print mode.
 
-Verify at least:
+## Cheap integrity check
 
-1. current conference dimensions, orientation, naming, format, and file-size rules;
-2. exact accepted-abstract title, author order, presenter styling, affiliations, contact, citations, acknowledgements, and required marks;
-3. every scientific number, unit, caption, conclusion, and limitation against its source;
-4. visual hierarchy at distance, browse, and close-reading scales;
-5. native text is black or a confirmed semantic accent, uses weight `400` or stronger, and passes both the physical-size minimum and the author-anchored relative-size ladder;
-6. each affiliation occupies one full-width row; its row spacing and bottom gap match the compact header rhythm; the next section begins from the reflowed header boundary without a residual blank band;
-7. each primary-to-secondary information pair has a visibly larger local gap than lines within the secondary group, without expanding the entire surrounding container;
-8. every extracted scientific image passes the four-boundary gate plus both the source-integrity and poster-placement reviews, including complete axes, scale bars, legends, plot boxes, clean edges, and four-sided clearance;
-9. final raster effective resolution and vector rendering quality;
-10. fonts, symbols, equations, the four-active-hue limit, color contrast, redundant non-color encodings, grayscale behavior inside scientific figures when relevant, and printer color handling;
-11. QR targets and visible fallback text when QR codes are used;
-12. one-page physical dimensions, trim, safe margin, and bleed according to the printer rather than assumption;
-13. a reduced-scale print or equivalent physical-size review before release, without preserving an extra image file unless requested.
+Run [check_poster_integrity.py](../scripts/check_poster_integrity.py) against the formal HTML and, when available, the approved wireframe. It checks parsing, finite values, required/unique ids, local references, `data-layout-id` membership, and standard inline semantic SVG presence.
 
-Also audit the structural CSS and rendered artwork for fixed or stretched header rows, multicolumn affiliation placement, an outer page frame, repeated enclosing borders, rounded semantic enclosures, gradients, card shadows, extra semantic hues, gray native text, light font weights, weak primary-to-secondary separation, and broken header continuity. A physically or relatively small text style, fifth hue, unconfirmed crop boundary, incomplete crop, unsafe figure inset, residual blank band, or repeated frame hierarchy is a release defect unless an approved exception records why it is necessary.
+It does not compare browser-computed positions or styles, inspect scientific meaning, conduct visual QA, or establish print readiness. Do not generate multi-round screenshots or repeat layout changes merely to satisfy an automated aesthetic score.
 
-Any structural revision returns to the editable HTML wireframe contract. Any scientific change returns to source and content-priority review. Re-run affected production checks after each change.
+Report `file integrity satisfied; awaiting user review`. The user owns final scientific, visual, and print acceptance.
 
-## Status language
+## Handoff disclosure
 
-Use precise handoff states:
+List:
 
-- **working draft:** content, layout, or sources remain unresolved;
-- **layout approved:** the board contract is confirmed, but formal rendering or scientific checks remain;
-- **author-approved:** the author has reviewed the current content and composition;
-- **print-ready candidate:** technical preflight passed, subject to the confirmed printer or venue process.
-
-Do not call a file print-ready merely because it exported successfully.
+- approved wireframe and formal HTML;
+- exact and approximate scientific modules;
+- blocked sources or returns to wireframe;
+- any custom workaround made because a Skill condition was unavailable;
+- cheap checks performed;
+- user-review items.

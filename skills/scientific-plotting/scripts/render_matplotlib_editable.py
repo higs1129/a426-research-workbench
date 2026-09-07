@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import hashlib
+from types import SimpleNamespace
 import json
 import math
 import sys
@@ -29,7 +31,7 @@ from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.ticker import AutoLocator, FixedLocator, MaxNLocator, MultipleLocator
+from matplotlib.ticker import AutoLocator, FixedLocator, MaxNLocator, MultipleLocator, ScalarFormatter
 
 from bundle_editable_figure import bundle_text, load_profile
 
@@ -40,6 +42,60 @@ BRIDGE_PATH = SKILL_ROOT / "assets" / "matplotlib-svg-bridge.js"
 
 def elapsed_ms(start: float) -> float:
     return round((perf_counter() - start) * 1000, 3)
+
+
+def model_module(path: Path):
+    """Adapt a supported semantic model into the same Matplotlib component pipeline."""
+    from render_semantic_svg import validate_model, axis_text
+    import matplotlib.pyplot as plt
+    model = validate_model(json.loads(path.read_text(encoding="utf-8")))
+    if set(model) - {"figureId", "profile", "heightMm", "sourceOrigin", "coordinateConfidence", "title", "x", "y", "series", "legend", "presentation", "provenance", "annotations", "rasterField"}:
+        raise SystemExit("Unmapped semantic model fields; confirm their adapter mapping before generation.")
+    for axis in (model["x"], model["y"]):
+        if set(axis) - {"domain", "scale", "title", "unit", "ticks"}:
+            raise SystemExit("Unmapped axis fields or numeric formatting; confirm their adapter mapping.")
+    if model["coordinateConfidence"] != "exact" or model.get("rasterField") or model.get("annotations"):
+        raise SystemExit("The report model adapter supports exact line/scatter data without raster fields or anchored annotations; confirm an adapter extension for this model.")
+    presentation = model.get("presentation", {})
+    if set(presentation) - {"marginsMm", "legend"}:
+        raise SystemExit("Unsupported model presentation fields; confirm their mapping before generation.")
+    legend = presentation.get("legend", model.get("legend", {"visible": True, "loc": "best"}))
+    if not isinstance(legend, dict) or set(legend) - {"visible", "loc"}:
+        raise SystemExit("Model legend requires supported visible/loc fields.")
+    def build(data, profile):
+        if data["heightMm"] != profile["exportHeightMm"]:
+            raise SystemExit("Model height differs from the selected physical profile; confirm the export-size configuration.")
+        expected_profile = "185mm-double" if profile["id"] == "185mm-wide" else profile["id"]
+        if data["profile"] != expected_profile:
+            raise SystemExit("Model profile differs from the selected adapter profile.")
+        fig, ax = plt.subplots(constrained_layout=True)
+        artists = []
+        for series in data["series"]:
+            if set(series) - {"id", "kind", "label", "points", "color", "lineWidthPt", "markerPt"}:
+                raise SystemExit("Unsupported series presentation or semantics; confirm their adapter mapping.")
+            x, y = zip(*series["points"])
+            kind = series.get("kind", "polyline")
+            artist, = ax.plot(x, y, label=series.get("label", series["id"]),
+                color=series.get("color"), linestyle="none" if kind == "scatter" else "-",
+                marker="o" if kind in {"scatter", "point-line"} else None,
+                linewidth=series.get("lineWidthPt", profile["rawWidthPt"]),
+                markersize=series.get("markerPt", profile["markerPt"]))
+            artists.append(artist)
+        ax.set(xlabel=axis_text(data["x"]), ylabel=axis_text(data["y"]),
+               xlim=data["x"]["domain"], ylim=data["y"]["domain"],
+               xscale=data["x"].get("scale", "linear"), yscale=data["y"].get("scale", "linear"), title=data.get("title", ""))
+        for name in ("x", "y"):
+            if "ticks" in data[name]:
+                getattr(ax, f"{name}axis").set_major_locator(FixedLocator(data[name]["ticks"]))
+        if legend.get("visible", True):
+            ax.legend(loc=legend.get("loc", "best"), frameon=False)
+        margins = presentation.get("marginsMm")
+        if margins:
+            w, h = profile["exportWidthMm"], profile["exportHeightMm"]
+            ax.set_position([margins["left"]/w, margins["bottom"]/h,
+                1-(margins["left"]+margins["right"])/w, 1-(margins["top"]+margins["bottom"])/h])
+        return {"figure": fig, "axes": ax, "series": artists}
+    return SimpleNamespace(load_data=lambda: model, build_figure=build)
 
 
 def load_plot_module(path: Path) -> ModuleType:
@@ -76,6 +132,7 @@ def apply_profile(profile: dict[str, Any]) -> None:
             "legend.fontsize": profile["legendPt"],
             "legend.labelcolor": "black",
             "lines.linewidth": profile["rawWidthPt"],
+            "lines.markersize": profile["markerPt"],
             "text.color": "black",
             "svg.fonttype": "none",
             "figure.dpi": 150,
@@ -125,6 +182,10 @@ def dash_pattern(line_style: Any) -> str:
 
 def line_payload(artist: Line2D, index: int) -> dict[str, Any]:
     artist.set_gid(f"sf-mpl-series-{index}")
+    marker = artist.get_marker()
+    show_markers = marker not in (None, "", " ", "None", "none")
+    if show_markers and marker not in ("o", "."):
+        raise SystemExit(f"Unsupported marker {marker!r}: this adapter supports round markers. Confirm an adapter change or extend it before generation.")
     return {
         "id": f"sf-series-{index}",
         "sourceId": f"sf-mpl-series-{index}",
@@ -137,6 +198,7 @@ def line_payload(artist: Line2D, index: int) -> dict[str, Any]:
         "lineWidthPt": float(artist.get_linewidth()),
         "dash": dash_pattern(artist.get_linestyle()),
         "markerPt": float(artist.get_markersize()),
+        "showMarkers": show_markers,
     }
 
 
@@ -145,6 +207,8 @@ def collection_payload(artist: PathCollection, index: int) -> dict[str, Any]:
     offsets = artist.get_offsets()
     colors = artist.get_facecolors()
     sizes = artist.get_sizes()
+    if len(sizes) > 1 or len(colors) > 1:
+        raise SystemExit("Per-point sizes/colors require an explicit adapter extension; generation stopped.")
     color = mpl_colors.to_hex(colors[0], keep_alpha=False) if len(colors) else "#4c84b5"
     marker_pt = math.sqrt(float(sizes[0])) if len(sizes) else 5.0
     return {
@@ -159,6 +223,7 @@ def collection_payload(artist: PathCollection, index: int) -> dict[str, Any]:
         "lineWidthPt": 0.0,
         "dash": "",
         "markerPt": marker_pt,
+        "showMarkers": True,
     }
 
 
@@ -245,12 +310,20 @@ def tick_policies(axes: Axes, profile: dict[str, Any]) -> dict[str, dict[str, An
 
 
 def prepare_figure(figure: Figure, axes: Axes, profile: dict[str, Any], artists: list[Any]) -> None:
+    if axes.get_xscale() != "linear" or axes.get_yscale() != "linear":
+        raise SystemExit("This adapter supports linear axes only; confirm a supported adapter before generation.")
+    if axes.texts or axes.images or axes.patches or any(item not in artists for item in [*axes.lines, *axes.collections]):
+        raise SystemExit("Unmapped annotations or scientific artists require an adapter extension before generation.")
+    for axis in (axes.xaxis, axes.yaxis):
+        if not isinstance(axis.get_major_formatter(), ScalarFormatter):
+            raise SystemExit("Custom numeric formatters need serialization support; generation stopped before changing the confirmed format.")
     figure.set_size_inches(
         profile["exportWidthMm"] / 25.4,
         profile["exportHeightMm"] / 25.4,
         forward=True,
     )
     axes.grid(False)
+    axes.tick_params(axis="both", which="both", direction="out")
     for spine in axes.spines.values():
         spine.set_visible(True)
         spine.set_color("black")
@@ -278,6 +351,19 @@ def prepare_figure(figure: Figure, axes: Axes, profile: dict[str, Any], artists:
         label.set_fontweight("bold")
     series_payload(artists)
     figure.canvas.draw()
+    invisible_spines = [name for name, spine in axes.spines.items() if not spine.get_visible()]
+    if invisible_spines:
+        raise SystemExit(
+            "Standalone scientific plots require boxed axes; invisible spines: "
+            + ", ".join(invisible_spines)
+        )
+
+
+def axes_contract(axes: Axes) -> dict[str, Any]:
+    return {
+        "boxed": {name: bool(spine.get_visible()) for name, spine in axes.spines.items()},
+        "tickDirection": "out",
+    }
 
 
 def plot_bounds(figure: Figure, axes: Axes) -> dict[str, float]:
@@ -428,7 +514,7 @@ def add_interaction_layers(svg: str, bounds: dict[str, float]) -> str:
     width = bounds["right"] - bounds["left"]
     height = bounds["bottom"] - bounds["top"]
     overlay = f"""
-  <defs data-sf-editor-only="true">
+  <defs>
     <clipPath id="sf-plot-clip"><rect x="{bounds['left']}" y="{bounds['top']}" width="{width}" height="{height}"/></clipPath>
   </defs>
   <g id="sf-dynamic-geometry" clip-path="url(#sf-plot-clip)"></g>
@@ -472,6 +558,9 @@ button[aria-pressed="true"] {{ background: #165f8f; color: #fff; }}
 .sf-editor label {{ display: grid; gap: 4px; margin: 0 0 10px; font-weight: 700; }}
 .sf-editor input, .sf-editor select {{ width: 100%; padding: 6px; border: 1px solid #94a3b8; border-radius: 5px; }}
 .sf-editor h2 {{ margin: 0 0 12px; font-size: 18px; }}
+.sf-page {{ display: block; }}
+.sf-editor {{ display: none; margin-top: 12px; }}
+.sf-layout-editing .sf-editor {{ display: block; }}
 .sf-layout-inspector {{ margin: 14px 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }}
 .sf-layout-inspector legend {{ padding: 0 4px; font-weight: 700; }}
 #sf-layout-selection {{ min-height: 1.5em; margin-bottom: 8px; color: #0f766e; font-weight: 700; }}
@@ -489,7 +578,8 @@ button[aria-pressed="true"] {{ background: #165f8f; color: #fff; }}
       <button data-sf-action="reset-view">Reset view</button>
       <button data-sf-action="edit-layout" aria-pressed="false">Edit layout</button>
       <button data-sf-action="undo-layout" disabled>Undo layout</button>
-      <button data-sf-action="export-svg">Export SVG</button>
+      <button data-sf-action="export-svg">Export current view SVG</button>
+      <button data-sf-action="save-html">Save current figure HTML</button>
     </div>
     <div class="sf-status" id="sf-status">Hover to read a raw point. Left-drag boxes a zoom region.</div>
     <div class="sf-figure-host">{svg}</div>
@@ -501,8 +591,10 @@ button[aria-pressed="true"] {{ background: #165f8f; color: #fff; }}
     <label>Y-axis label<input data-sf-field="yLabel" type="text"></label>
     <label>Font family<select data-sf-field="fontFamily"><option value='Calibri, "Microsoft YaHei", sans-serif'>Calibri / Microsoft YaHei</option><option value='Arial, "Microsoft YaHei", sans-serif'>Arial / Microsoft YaHei</option></select></label>
     <label>Plot text (pt)<input data-sf-field="plotFontPt" type="number" min="5" max="30" step="0.5"></label>
+    <label>Axis titles (pt)<input data-sf-field="axisFontPt" type="number" min="5" max="30" step="0.5"></label>
     <label>Title (pt)<input data-sf-field="titleFontPt" type="number" min="5" max="30" step="0.5"></label>
     <label>Data line (pt)<input data-sf-field="lineWidthPt" type="number" min="0.2" max="8" step="0.1"></label>
+    <label>Marker diameter (pt)<input data-sf-field="markerSizePt" type="number" min="0.5" max="30" step="0.5"></label>
     <fieldset class="sf-layout-inspector">
       <legend>Selected element</legend>
       <div id="sf-layout-selection">None</div>
@@ -532,8 +624,9 @@ def figure_data(
 ) -> dict[str, Any]:
     x_min, x_max = map(float, axes.get_xlim())
     y_min, y_max = map(float, axes.get_ylim())
-    return {
+    payload = {
         "renderer": "matplotlib-svg-fast-path",
+        "componentVersion": "1.0",
         "profileId": profile_id,
         "figureId": f"matplotlib-{profile_id}",
         "plotBounds": plot_bounds(figure, axes),
@@ -543,11 +636,21 @@ def figure_data(
             "x": axes.get_xlabel(),
             "y": axes.get_ylabel(),
         },
+        "axesContract": axes_contract(axes),
         "ticks": tick_policies(axes, profile),
         "layoutDefaults": initial_layout,
         "layoutDiagnostics": layout_diagnostics,
         "series": series_payload(artists),
     }
+    payload["initialTicks"] = {
+        name: [{"value": float(value), "label": label.get_text()}
+               for value, label in zip(axis.get_majorticklocs(), axis.get_ticklabels())
+               if limits[0] <= float(value) <= limits[1]]
+        for name, axis, limits in (("x", axes.xaxis, axes.get_xlim()), ("y", axes.yaxis, axes.get_ylim()))
+    }
+    payload["legend"] = {"visible": axes.get_legend() is not None,
+                         "labels": [t.get_text() for t in axes.get_legend().get_texts()] if axes.get_legend() else []}
+    return payload
 
 
 def render(args: argparse.Namespace) -> dict[str, Any]:
@@ -557,7 +660,8 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
     stage = perf_counter()
     profile = load_profile(args.profile_id)
     apply_profile(profile)
-    module = load_plot_module(args.plot_script.resolve())
+    source_path = args.model if getattr(args, "model", None) else args.plot_script
+    module = model_module(source_path.resolve()) if getattr(args, "model", None) else load_plot_module(source_path.resolve())
     timings["setup_and_module_load_ms"] = elapsed_ms(stage)
 
     if not hasattr(module, "load_data") or not hasattr(module, "build_figure"):
@@ -584,6 +688,18 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
         initial_layout,
         layout_diagnostics,
     )
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
+    payload["figureId"] = f"sf-{digest[:20]}"
+    payload["provenance"] = {"sourceSha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+                             "dataStateSha256": digest}
+    payload["figureModel"] = {
+        "figureId": payload["figureId"], "profile": "185mm-double" if args.profile_id == "185mm-wide" else args.profile_id,
+        "heightMm": profile["exportHeightMm"], "sourceOrigin": "authoritative-data", "coordinateConfidence": "exact",
+        "x": {"domain": [payload["fullView"]["xMin"], payload["fullView"]["xMax"]], "scale": "linear", "title": payload["labels"]["x"], "unit": "", "ticks": [t["value"] for t in payload["initialTicks"]["x"]]},
+        "y": {"domain": [payload["fullView"]["yMin"], payload["fullView"]["yMax"]], "scale": "linear", "title": payload["labels"]["y"], "unit": "", "ticks": [t["value"] for t in payload["initialTicks"]["y"]]},
+        "series": [{"id": s["id"], "kind": "scatter" if s["type"] == "scatter" else "point-line" if s["showMarkers"] else "polyline", "label": s["label"], "color": s["color"]} for s in payload["series"]],
+        "provenance": payload["provenance"], "presentation": {"profile": profile, "plotBoundsPt": payload["plotBounds"], "legend": payload["legend"], "tickPolicies": payload["ticks"]},
+    }
     timings["svg_export_ms"] = elapsed_ms(stage)
 
     stage = perf_counter()
@@ -600,7 +716,7 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
     timings["total_ms"] = elapsed_ms(total_start)
 
     report = {
-        "plotScript": str(args.plot_script.resolve()),
+        "plotScript": str(source_path.resolve()),
         "output": str(output),
         "profileId": args.profile_id,
         "seriesCount": len(artists),
@@ -622,7 +738,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Render a standard Matplotlib figure as editable offline HTML."
     )
-    parser.add_argument("--plot-script", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--plot-script", type=Path)
+    source.add_argument("--model", type=Path, help="Supported exact semantic JSON model; uses the same component adapter")
     parser.add_argument("--profile-id", required=True, choices=["90mm-single", "185mm-wide"])
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timing-output", type=Path)

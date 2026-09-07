@@ -2,6 +2,8 @@
 
 Read this reference only when an HTML figure is requested or a report needs an embedded editable figure.
 
+Poster use is not a separate plotting profile. A poster receives the standard semantic SVG and adapts it through the figure model; do not attach zoom, pan, hover, or the editable-figure runtime merely because an SVG is inline.
+
 ## Outcome
 
 Deliver a browser figure whose scientific data remain traceable and whose meaningful presentation state can be changed without editing source code. An SVG node tree visible in developer tools is not sufficient by itself; provide user-facing controls for the requested editing scope.
@@ -9,7 +11,7 @@ Deliver a browser figure whose scientific data remain traceable and whose meanin
 ## Rendering and state
 
 - For ordinary single-linear-axes line, scatter, spectrum, and similar standard data plots, prefer the Matplotlib SVG fast path in [matplotlib-fast-path.md](matplotlib-fast-path.md). Matplotlib should construct the vector figure; do not reimplement its coordinate transforms, axes, ticks, and initial SVG geometry in task code.
-- Prefer standard SVG/DOM traces through a declarative chart library, Plotly standard 2D traces, D3/SVG, or native SVG.
+- Select one supported SVG/DOM adapter for the figure before production; its component supplies every delivery view.
 - Avoid Canvas, WebGL, raster-only images, and Plotly WebGL traces when element-level editing is required. Use them only for data density that SVG cannot handle, and disclose the loss of editability.
 - Keep three layers distinct:
   1. authoritative data and provenance;
@@ -22,6 +24,12 @@ Deliver a browser figure whose scientific data remain traceable and whose meanin
 - Use English-only figure, axis, and panel titles by default. Switch them to Chinese only when the current user explicitly requests Chinese; do not show bilingual duplicate titles.
 - Do not render grid lines unless the current user explicitly requests them.
 
+### Archival inline-data contract
+
+When an editable HTML figure is intended to become a reusable scientific source, keep it self-contained and include the authoritative physical data, axes and units, scale/domain definitions, series semantics, stable `data-series-id` mappings into the rendered SVG, renderer version, and provenance. The HTML is a qualified source only when those elements can regenerate or verify the visual result without reading screen coordinates or loading a network/machine-local file. Read [source-and-svg-contract.md](source-and-svg-contract.md).
+
+This is the preferred archive for newly generated figures when practical, not a requirement to rewrite every historical SVG or AI file. Sharing a qualified HTML also shares its embedded data.
+
 ## Production fast path
 
 - For a standard single-axes figure, read [matplotlib-fast-path.md](matplotlib-fast-path.md) and use `../scripts/render_matplotlib_editable.py`. Keep only `load_data()` and `build_figure(data, profile)` in the task-local Python generator. The renderer applies the selected profile, preserves SVG text with `svg.fonttype = "none"`, embeds the SVG and authoritative data, and loads the maintained interaction bridge.
@@ -31,7 +39,7 @@ Deliver a browser figure whose scientific data remain traceable and whose meanin
 - Keep task-specific code with the task output and limit the standard route to locating data, constructing Matplotlib artists, declaring units and labels, and returning the figure, axes, and supported series. Do not copy a second independently evolving renderer into the task folder.
 - Bundle the task shell, adapter, JSON data, one fixed profile, and shared runtime with `../scripts/bundle_editable_figure.py`; the final HTML must not depend on the Skill path or a network connection.
 - During ordinary figure generation, produce only the requested deliverable and run cheap deterministic checks on it. Do not regenerate Skill fixtures, test both physical-width profiles, create debug screenshots, open a browser for generic visual inspection, or run browser/DOM regression suites unless the user explicitly requests testing, deterministic checks identify an unresolved risk, or reusable renderer code is being changed.
-- If the requested figure cannot be expressed by the maintained renderer, extend the shared renderer once only when the capability is genuinely reusable; otherwise keep the smallest scoped task implementation and report the limitation.
+- When the selected renderer lacks a required capability, describe the missing behavior and its effect on the confirmed figure. Confirm an adapter change or extension before continuing; keep one rendering implementation for that figure.
 
 The callbacks defined by the renderer contract are JavaScript extension points inside the generated figure. They are unrelated to Codex lifecycle Hooks and must not be implemented through global Codex configuration.
 
@@ -43,7 +51,7 @@ Expose controls appropriate to the figure for:
 - title, axis labels, legend labels, and annotations;
 - font family, size, and weight; title color must reset to black;
 - data, fit, guide, and axis stroke widths, colors, dash patterns, and opacity;
-- marker shape, diameter, border, and opacity;
+- marker shape, diameter, border, and opacity; for scatter and point-line series, initialize marker diameter to half the axis tick-label font size unless the user or authoritative source explicitly sets another value, and expose marker diameter as independent semantic presentation state;
 - axis range, linear/log scale, tick count, and numeric formatting;
 - typography and stroke tokens initialized from the fixed delivery profile. At export size, the 185 mm profile uses 12 pt ticks, ordinary plot text, axis labels, and legend text, plus a 10 pt figure title;
 - compact hover-title and hover-value sizes independent of the plot font; the 185 mm defaults are 9 pt and 8 pt so inspection does not cover a large fraction of the trace;
@@ -67,7 +75,7 @@ Keep direct-edit offsets and overrides in semantic state rather than treating th
 - Default to data inspection. Enter direct editing through an explicit, visibly selected `Edit layout` control; do not overload the same left drag with box zoom, pan, and element movement.
 - In layout-edit mode, clicking an eligible element highlights it and opens a context-specific inspector containing only relevant fields. Give composite presentation elements a transparent whole-bounds hit target so the empty space inside a legend or grouped tick labels is selectable. Allow direct drag in SVG coordinates and provide numeric offsets for precise adjustment.
 - Keep the editor collapsible. Selecting an eligible element may reopen it automatically. On narrow screens, use a side drawer or place the inspector below the figure without covering the evidence.
-- Auto-save completed edits in browser-local storage under a figure-specific, versioned key. On reopen, restore compatible state and ignore or clear invalid saved state safely.
+- Save meaningful edits and the current view into the portable HTML state. Embedded state is authoritative on reopen; browser-local caches are optional convenience and never silently replace the report's saved baseline. Use a figure-specific, versioned identity.
 - Keep a bounded undo history, an obvious default restoration action, and concise status feedback for selection, drag completion, saving, undo, reset, and export.
 - Support keyboard selection with Enter or Space for focusable presentation elements. Provide visible focus and selected states that do not appear in exported figures.
 
@@ -95,10 +103,8 @@ Store horizontal and vertical axis-title spacing separately. Default the horizon
 
 ### Embedded report figure
 
-- Embed the SVG figure and its data/state directly in the report HTML.
-- Keep per-figure controls collapsed by default so they do not interrupt the reading path.
-- Namespace element ids, CSS, and state when several figures share a page.
-- Allow a report-level style setting to update multiple figures when the report owns a common visual profile.
+- Use [report-component.md](report-component.md) and the maintained report bundler. Each self-contained figure lives in one inline `srcdoc` iframe, isolating its CSS, ids and state; expanding it keeps that same instance.
+- Keep presentation editing controls collapsed by default. A common report style is proposed before figure generation and applied through figure configuration; report CSS controls only surrounding layout.
 
 ### Standalone figure
 
@@ -106,7 +112,7 @@ Store horizontal and vertical axis-title spacing separately. Default the horizon
 - Include the data or a documented local payload, the initial state, the SVG view, editing controls, reset, state download, and SVG export.
 - If the HTML embeds authoritative or sensitive data, tell the user that sharing the file also shares those data.
 
-Use the same renderer and state model for embedded and standalone modes; change only the surrounding page shell.
+Use the same component for embedded, expanded and standalone modes; export from its declared current state and save figure state alongside report prose.
 
 ## Responsive behavior
 
@@ -134,6 +140,6 @@ When applicable:
 10. Check desktop and narrow/mobile widths for clipping, overlap, hidden evidence, inaccessible controls, and scroll/gesture conflicts.
 11. Confirm the default titles are English only, the Calibri/Microsoft YaHei fallback remains available for an explicitly requested Chinese version, no grid lines are rendered, and every in-figure title is black.
 12. Compare the single embedded profile with `assets/style-profiles.json` and confirm Matplotlib and HTML/SVG previews resolve the same physical size, typography, line, marker, tick, and gap tokens.
-13. Enter layout-edit mode, select and drag a title or the whole legend bounds, edit one property, undo it, reload the page, and confirm compatible browser-saved state is restored. Select the x-axis tick-label group and then the y-axis tick-label group, change their offsets independently, and confirm each axis's labels move together while values and tick marks stay fixed. Confirm the inspector shows only relevant fields and can be collapsed.
+13. Enter layout-edit mode, select and drag a title or the whole legend bounds, edit one property, undo it, save the HTML and reopen that file to confirm portable state is restored. Select each axis's tick-label group, change its offset and confirm labels move together while values and tick marks stay fixed. Confirm the inspector shows only relevant fields and can be collapsed.
 14. Attempt to drag a curve, measured point, axis spine, and tick mark. Confirm each remains fixed and the interface explains the semantic lock. Return to inspection mode and verify hover, box zoom, pan, and Reset view still work.
 15. Export after selecting and dragging a presentation element. Confirm the semantic edit is present while selection glow, hover guides, brush rectangle, interaction surface, and editor-only metadata are absent.

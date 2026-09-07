@@ -68,6 +68,8 @@ def main() -> None:
         "pan": 'data-sf-action="pan"',
         "hover layer": 'id="inspection-overlay"',
         "editor": 'data-sf-field="lineWidthPt"',
+        "marker diameter editor": 'data-sf-field="markerSizePt"',
+        "point-line marker redraw": "if (item.showMarkers) renderMarkers(item, view)",
         "layout mode": 'data-sf-action="edit-layout"',
         "layout undo": 'data-sf-action="undo-layout"',
         "layout numeric offset": 'data-sf-layout-field="x"',
@@ -101,6 +103,10 @@ def main() -> None:
 
     embedded_profile = embedded_json("scientific-figure-profile")
     embedded_data = embedded_json("scientific-figure-data")
+    all_profiles = json.loads((SKILL_ROOT / "assets" / "style-profiles.json").read_text(encoding="utf-8"))
+    for profile_id, candidate in all_profiles.items():
+        if abs(candidate["markerPt"] - candidate["tickPt"] * 0.5) > 1e-9:
+            raise AssertionError(f"{profile_id} marker diameter must equal half its tick-label font size.")
     if embedded_profile["tickLabelGapEm"] != 0.28:
         raise AssertionError("Unexpected default tick-label gap.")
     if embedded_profile["legendAxisGapEm"] != 0.25:
@@ -109,6 +115,17 @@ def main() -> None:
         raise AssertionError("Unexpected default title-legend gap.")
     if embedded_profile["topLayoutSafetyEm"] != 0.4:
         raise AssertionError("Unexpected browser-metric top-layout safety reserve.")
+    if abs(embedded_profile["markerPt"] - embedded_profile["tickPt"] * 0.5) > 1e-9:
+        raise AssertionError("Default marker diameter must equal half the tick-label font size.")
+    marker_series = [item for item in embedded_data["series"] if item["type"] == "scatter" or item.get("showMarkers")]
+    if len(marker_series) != 2:
+        raise AssertionError("Representative point-line and scatter marker series were not preserved.")
+    if not any(item["type"] == "line" and item.get("showMarkers") for item in marker_series):
+        raise AssertionError("Point-line markers were not preserved alongside the connecting line.")
+    if not any(item["type"] == "scatter" for item in marker_series):
+        raise AssertionError("Scatter markers were not preserved.")
+    if any(abs(item["markerPt"] - embedded_profile["markerPt"]) > 1e-9 for item in marker_series):
+        raise AssertionError("Default point-line/scatter marker diameter drifted from the profile.")
     if embedded_data["layoutDefaults"]["legend"]["y"] <= 0:
         raise AssertionError("Top legend was not compacted toward the axes.")
     if embedded_data["ticks"]["y"]["mode"] != "fixed-step":
@@ -117,6 +134,10 @@ def main() -> None:
         raise AssertionError("Explicit 0.2 y-axis interval was not preserved.")
     if embedded_data["ticks"]["x"]["mode"] != "nice":
         raise AssertionError("The default x-axis should retain shared nice ticks.")
+    if not all(embedded_data["axesContract"]["boxed"].values()):
+        raise AssertionError("The standard plot did not retain all four boxed-axis spines.")
+    if embedded_data["axesContract"]["tickDirection"] != "out":
+        raise AssertionError("The standard plot did not retain outward ticks.")
     if embedded_data["layoutDiagnostics"]["titleLegend"]["status"] != "adjusted":
         raise AssertionError("The title/legend collision was not detected and resolved.")
     if embedded_data["layoutDefaults"]["title"]["y"] >= 0:

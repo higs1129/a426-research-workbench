@@ -7,6 +7,7 @@
   "use strict";
 
   const NS = "http://www.w3.org/2000/svg";
+  const originalDocument = "<!doctype html>\n" + document.documentElement.outerHTML;
   const root = document.getElementById("figure-root");
   const svg = root.querySelector("svg");
   const surface = document.getElementById("interaction-surface");
@@ -35,22 +36,39 @@
     ]));
   }
 
+  const markerSeries = data.series.filter(item => item.type === "scatter" || item.showMarkers);
+  const defaultMarkerSizes = Object.freeze(Object.fromEntries(markerSeries.map(item => [
+    item.id,
+    Number(item.markerPt ?? profile.markerPt),
+  ])));
+  const firstMarkerSize = markerSeries.length ? defaultMarkerSizes[markerSeries[0].id] : Number(profile.markerPt);
+
   const defaults = Object.freeze({
     title: data.labels.title,
     xLabel: data.labels.x,
     yLabel: data.labels.y,
     fontFamily: 'Calibri, "Microsoft YaHei", sans-serif',
     plotFontPt: Number(profile.tickPt),
+    axisFontPt: Number(profile.axisLabelPt),
     titleFontPt: Number(profile.figureTitlePt),
     lineWidthPt: Number(data.series[0]?.lineWidthPt || profile.rawWidthPt),
+    markerSizePt: firstMarkerSize,
+    markerSizes: defaultMarkerSizes,
     layout: copyLayout(data.layoutDefaults),
   });
-  let styleState = {...defaults, layout: copyLayout(defaults.layout)};
+  let styleState = {...defaults, markerSizes: {...defaults.markerSizes}, layout: copyLayout(defaults.layout)};
   const stateStore = ScientificFigureRuntime.createStateStore(`sf-mpl:${data.figureId}`, 3);
-  const saved = stateStore.load();
+  // Portable embedded state is authoritative. Browser caches never change an initial report view.
+  const embeddedState = JSON.parse(document.getElementById("scientific-figure-state")?.textContent || "null");
+  const saved = embeddedState?.figureId === data.figureId ? embeddedState.style : null;
   let automaticTopLayout = !(saved && typeof saved === "object");
   if (saved && typeof saved === "object") {
-    styleState = {...styleState, ...saved, layout: copyLayout(saved.layout || defaults.layout)};
+    styleState = {
+      ...styleState,
+      ...saved,
+      markerSizes: {...defaults.markerSizes, ...(saved.markerSizes || {})},
+      layout: copyLayout(saved.layout || defaults.layout),
+    };
   }
   const layoutHistory = ScientificFigureRuntime.createHistory(30);
   const baseTransforms = new Map();
@@ -110,6 +128,9 @@
   }
 
   function ticksForAxis(axis, minimum, maximum) {
+    if (minimum === fullView[`${axis}Min`] && maximum === fullView[`${axis}Max`] && data.initialTicks?.[axis]) {
+      return data.initialTicks[axis].map(tick => tick.value);
+    }
     const specification = data.ticks?.[axis] || {mode: "nice"};
     if (specification.mode === "fixed-step") {
       return fixedStepTicks(minimum, maximum, specification);
@@ -140,20 +161,24 @@
     });
   }
 
+  function renderMarkers(item, view) {
+    const radius = Math.max(0.25, Number(styleState.markerSizes[item.id] ?? styleState.markerSizePt) / 2);
+    item.x.forEach((xValue, index) => {
+      const yValue = item.y[index];
+      if (xValue == null || yValue == null) return;
+      if (xValue < view.xMin || xValue > view.xMax || yValue < view.yMin || yValue > view.yMax) return;
+      geometry.appendChild(node("circle", {
+        cx: mapX(xValue, view), cy: mapY(yValue, view), r: radius,
+        fill: item.color, opacity: item.opacity, "data-sf-series-id": item.id,
+      }));
+    });
+  }
+
   function renderGeometry(view) {
     geometry.replaceChildren();
     for (const item of data.series) {
       if (item.type === "scatter") {
-        const radius = Math.max(1.2, Number(item.markerPt || profile.markerPt) / 2);
-        item.x.forEach((xValue, index) => {
-          const yValue = item.y[index];
-          if (xValue == null || yValue == null) return;
-          if (xValue < view.xMin || xValue > view.xMax || yValue < view.yMin || yValue > view.yMax) return;
-          geometry.appendChild(node("circle", {
-            cx: mapX(xValue, view), cy: mapY(yValue, view), r: radius,
-            fill: item.color, opacity: item.opacity,
-          }));
-        });
+        renderMarkers(item, view);
         continue;
       }
       let path = "";
@@ -173,19 +198,20 @@
         d: path,
         fill: "none",
         stroke: item.color,
-        "stroke-width": styleState.lineWidthPt,
+        "data-role": "data-series", "data-series-id": item.id,
+        "stroke-width": item.lineWidthPt * styleState.lineWidthPt / (defaults.lineWidthPt || 1),
         "stroke-dasharray": item.dash || "none",
         opacity: item.opacity,
-        "vector-effect": "non-scaling-stroke",
       }));
+      if (item.showMarkers) renderMarkers(item, view);
     }
   }
 
   function renderTicks(view) {
     tickLayer.replaceChildren();
-    const xMarks = node("g", {"data-sf-tick-marks": "x"});
+    const xMarks = node("g", {"data-sf-tick-marks": "x", "data-role": "ticks-x"});
     const xLabels = node("g", {id: "sf-x-tick-labels"});
-    const yMarks = node("g", {"data-sf-tick-marks": "y"});
+    const yMarks = node("g", {"data-sf-tick-marks": "y", "data-role": "ticks-y"});
     const yLabels = node("g", {id: "sf-y-tick-labels"});
     tickLayer.append(xMarks, xLabels, yMarks, yLabels);
     tickLayer.setAttribute("font-family", styleState.fontFamily);
@@ -205,7 +231,7 @@
         x, y: bounds.bottom + tickLength + tickGap,
         "text-anchor": "middle", "dominant-baseline": "hanging",
         "data-sf-axis": "x", "data-sf-tick-label": "true",
-      }, formatValue(value)));
+      }, initialTickLabel("x", value, view)));
     }
     for (const value of ticksForAxis("y", view.yMin, view.yMax)) {
       const y = mapY(value, view);
@@ -217,7 +243,7 @@
         x: bounds.left - tickLength - tickGap, y,
         "text-anchor": "end", "dominant-baseline": "middle",
         "data-sf-axis": "y", "data-sf-tick-label": "true",
-      }, formatValue(value)));
+      }, initialTickLabel("y", value, view)));
     }
     markLayoutElement("xTicks");
     markLayoutElement("yTicks");
@@ -232,12 +258,7 @@
         const currentY = Number(label.getAttribute("y"));
         label.setAttribute("y", (currentY + targetTop - box.y).toFixed(3));
       }
-      if (xTitle) ScientificFigureRuntime.placeHorizontalAxisTitle({
-        title: xTitle,
-        tickLabels: xTickLabels,
-        gapEm: profile.axisTitleGapEmX,
-        fontSizePx: styleState.plotFontPt,
-      });
+      placeAxisTitles();
       refreshLayoutHitTarget(layoutElement("xLabel"));
       refreshLayoutHitTarget(xLabels);
       refreshLayoutHitTarget(yLabels);
@@ -247,6 +268,33 @@
   function renderView(view) {
     renderGeometry(view);
     renderTicks(view);
+  }
+
+  function initialTickLabel(axis, value, view) {
+    if (view[`${axis}Min`] === fullView[`${axis}Min`] && view[`${axis}Max`] === fullView[`${axis}Max`]) {
+      const tick = data.initialTicks?.[axis]?.find(item => item.value === value);
+      if (tick) return tick.label;
+    }
+    return formatValue(value);
+  }
+
+  function placeAxisTitles() {
+    const scale = Math.abs(svg.getScreenCTM()?.a || 1);
+    for (const axis of ["x", "y"]) {
+      const role = `${axis}Label`, group = layoutElement(role);
+      const labels = [...document.querySelectorAll(`#sf-${axis}-tick-labels text`)];
+      if (!group || !labels.length) continue;
+      applyLayoutRole(role);
+      const title = group.querySelector("text").getBoundingClientRect();
+      const boxes = labels.map(label => label.getBoundingClientRect());
+      const gap = profile[axis === "x" ? "axisTitleGapEmX" : "axisTitleGapEmY"] * styleState.axisFontPt;
+      const offset = styleState.layout[role] || {x: 0, y: 0};
+      const delta = axis === "x"
+        ? (Math.max(...boxes.map(box => box.bottom)) - title.top) / scale + gap + offset.y
+        : (Math.min(...boxes.map(box => box.left)) - title.right) / scale - gap + offset.x;
+      group.setAttribute("transform", `translate(${axis === "y" ? delta : 0} ${axis === "x" ? delta : 0}) ${group.getAttribute("transform") || ""}`);
+      group.setAttribute("data-gap-method", "rendered-bounds");
+    }
   }
 
   function nearestPoint(plot, view) {
@@ -518,7 +566,7 @@
     if (title) title.style.fontSize = `${styleState.titleFontPt}px`;
     for (const selector of ["#sf-x-axis-label text", "#sf-y-axis-label text"]) {
       const label = document.querySelector(selector);
-      if (label) label.style.fontSize = `${styleState.plotFontPt}px`;
+      if (label) label.style.fontSize = `${styleState.axisFontPt}px`;
     }
     markLayoutElements();
     applyLayout();
@@ -536,10 +584,7 @@
   }
 
   function downloadSvg() {
-    const clean = ScientificFigureRuntime.sanitizeSvg(svg);
-    clean.setAttribute("width", `${profile.exportWidthMm}mm`);
-    clean.setAttribute("height", `${profile.exportHeightMm}mm`);
-    const blob = new Blob([new XMLSerializer().serializeToString(clean)], {type: "image/svg+xml"});
+    const blob = new Blob([exportCurrentSvg()], {type: "image/svg+xml"});
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `${data.figureId}.svg`;
@@ -554,7 +599,8 @@
     brush,
     plotBounds: bounds,
     fullView,
-    initialView: fullView,
+    initialView: embeddedState?.view || fullView,
+    pointerMode: embeddedState?.pointerMode || "zoom",
     hooks: {
       viewChanged({view}) { renderView(view); },
       inspect({plot, view}) { return nearestPoint(plot, view); },
@@ -573,6 +619,9 @@
     input.addEventListener("input", () => {
       const key = input.dataset.sfField;
       styleState[key] = input.type === "number" ? Number(input.value) : input.value;
+      if (key === "markerSizePt") {
+        styleState.markerSizes = Object.fromEntries(markerSeries.map(item => [item.id, styleState.markerSizePt]));
+      }
       applyStyle();
     });
   });
@@ -611,7 +660,7 @@
     status.textContent = "Last layout move undone.";
   });
   root.querySelector("[data-sf-action='restore-style']")?.addEventListener("click", () => {
-    styleState = {...defaults, layout: copyLayout(defaults.layout)};
+    styleState = {...defaults, markerSizes: {...defaults.markerSizes}, layout: copyLayout(defaults.layout)};
     automaticTopLayout = true;
     layoutHistory.clear();
     stateStore.clear();
@@ -621,7 +670,88 @@
   root.querySelector("[data-sf-action='export-svg']")?.addEventListener("click", downloadSvg);
 
   applyStyle({persist: false});
-  controller.setView(fullView, "initial");
+  controller.setView(embeddedState?.view || fullView, "initial");
   root.dataset.sfRenderer = data.renderer;
-  root.dataset.sfReady = "true";
+  function getState() {
+    return structuredClone({version: 1, figureId: data.figureId, style: styleState, view: controller.getView(), pointerMode: controller.getPointerMode()});
+  }
+  function serializeHtml() {
+    const doc = new DOMParser().parseFromString(originalDocument, "text/html");
+    doc.getElementById("scientific-figure-state")?.remove();
+    const state = doc.createElement("script");
+    state.id = "scientific-figure-state"; state.type = "application/json";
+    state.textContent = JSON.stringify(getState()).replace(/</g, "\\u003c");
+    doc.head.append(state);
+    return "<!doctype html>\n" + doc.documentElement.outerHTML;
+  }
+  function exportCurrentSvg() {
+    const clean = ScientificFigureRuntime.sanitizeSvg(svg);
+    clean.querySelectorAll('[style*="display: none"], [data-sf-layout-hit]').forEach(el => {
+      // Matplotlib places marker definitions in a series group; legends can reuse them.
+      el.querySelectorAll('defs').forEach(defs => clean.prepend(defs));
+      el.remove();
+    });
+    clean.querySelectorAll("*").forEach(el => {
+      el.removeAttribute("data-sf-selected");
+      el.style?.removeProperty("filter");
+    });
+    const model = structuredClone(data.figureModel);
+    model.series.forEach((series, index) => {
+      series.points = data.series[index].x.map((x, i) => [x, data.series[index].y[i]]);
+    });
+    model.presentation.currentState = getState();
+    model.x.domain = [controller.getView().xMin, controller.getView().xMax];
+    model.y.domain = [controller.getView().yMin, controller.getView().yMax];
+    model.x.title = styleState.xLabel; model.y.title = styleState.yLabel;
+    model.x.ticks = ticksForAxis("x", ...model.x.domain); model.y.ticks = ticksForAxis("y", ...model.y.domain);
+    clean.querySelectorAll("metadata").forEach(el => el.remove());
+    const metadata = node("metadata", {"data-role": "figure-model"}, JSON.stringify(model));
+    const conversion = node("g", {"data-role": "point-to-mm-conversion", transform: "scale(0.3527777777777778)"});
+    while (clean.firstChild) conversion.appendChild(clean.firstChild);
+    clean.append(metadata, conversion);
+    clean.setAttribute("data-role", "scientific-figure");
+    clean.setAttribute("data-profile", model.profile);
+    clean.setAttribute("data-source-origin", "authoritative-data");
+    clean.setAttribute("data-coordinate-confidence", "exact");
+    clean.setAttribute("data-user-unit-mm", "1");
+    clean.setAttribute("data-physical-coordinate-system", "mm-isomorphic");
+    clean.setAttribute("width", `${profile.exportWidthMm}mm`);
+    clean.setAttribute("height", `${profile.exportHeightMm}mm`);
+    clean.setAttribute("viewBox", `0 0 ${profile.exportWidthMm} ${profile.exportHeightMm}`);
+    clean.setAttribute("data-export-state", "current");
+    const roles = {"sf-dynamic-geometry": "plot-area", "sf-dynamic-ticks": "axes", "sf-x-axis-label": "axis-title-x", "sf-y-axis-label": "axis-title-y", "sf-legend": "legend"};
+    for (const [id, role] of Object.entries(roles)) clean.querySelector(`#${id}`)?.setAttribute("data-role", role);
+    clean.querySelector("#axes_1 > g[id^='patch_']")?.setAttribute("data-role", "plot-box");
+    clean.querySelectorAll("circle[data-sf-series-id]").forEach(el => {el.setAttribute("data-role", "data-series"); el.setAttribute("data-series-id", el.dataset.sfSeriesId);});
+    const style = node("style", {}, `svg{--figure-font-family:Calibri,"Microsoft YaHei",sans-serif;--axis-label-size:${styleState.axisFontPt}px;--tick-label-size:${styleState.plotFontPt}px;--annotation-size:${profile.legendPt}px;--data-line-width:${styleState.lineWidthPt}px;--axis-line-width:${profile.axisWidthPt}px;--tick-length:${Math.max(2.5, profile.axisWidthPt * 4.5)}px}`);
+    clean.prepend(style);
+    for (const id of ['sf-x-axis-label', 'sf-y-axis-label']) {
+      clean.querySelector(`#${id} text`)?.style.setProperty('font-size', 'var(--axis-label-size)');
+    }
+    clean.querySelector('#sf-dynamic-ticks')?.setAttribute('font-size', 'var(--tick-label-size)');
+    // Keep independent exports safely composable without cross-figure id collisions.
+    const idMap = new Map([...clean.querySelectorAll('[id]')].map(el => [el.id, `${data.figureId}-${el.id}`]));
+    for (const element of clean.querySelectorAll('*')) {
+      if (element.id) element.id = idMap.get(element.id);
+      for (const attribute of [...element.attributes]) {
+        let value = attribute.value.replace(/url\(#([^\)]+)\)/g, (match, id) => `url(#${idMap.get(id) || id})`);
+        if (attribute.localName === 'href' && value.startsWith('#')) value = `#${idMap.get(value.slice(1)) || value.slice(1)}`;
+        attribute.value = value;
+      }
+    }
+    clean.id = data.figureId;
+    return new XMLSerializer().serializeToString(clean);
+  }
+  window.ScientificFigure = Object.freeze({version: 1, getState, serializeHtml, exportCurrentSvg,
+    setView(view) { controller.setView(view, "user"); },
+    ready: document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+      placeAxisTitles(); root.dataset.sfReady = "true"; resolve();
+    })))),
+  });
+  new ResizeObserver(() => requestAnimationFrame(placeAxisTitles)).observe(svg);
+  root.querySelector('[data-sf-action="save-html"]')?.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([serializeHtml()], {type: "text/html"}));
+    link.download = `${data.figureId}.html`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 0);
+  });
 })();

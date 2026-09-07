@@ -24,6 +24,22 @@ def build_figure(data, profile):
         linewidth=profile["rawWidthPt"],
         label="Measured transmission",
     )
+    sample_x = np.linspace(-30.0, 30.0, 7)
+    sample_y = np.interp(sample_x, frequency, transmission)
+    point_line, = axes.plot(
+        sample_x,
+        sample_y,
+        color="#D95319",
+        linestyle="--",
+        marker="o",
+        label="_point-line fixture",
+    )
+    scatter = axes.scatter(
+        sample_x + 1.5,
+        sample_y - 0.025,
+        color="#2F8F5B",
+        label="_scatter fixture",
+    )
     axes.set_title("Optical transmission spectrum")
     axes.set_xlabel("Relative frequency (GHz)")
     axes.set_ylabel("Normalized transmission")
@@ -36,4 +52,4 @@ def build_figure(data, profile):
         borderaxespad=0.8,
         frameon=False,
     )
-    return {"figure": figure, "axes": axes, "series": [line]}
+    return {"figure": figure, "axes": axes, "series": [line, point_line, scatter]}
