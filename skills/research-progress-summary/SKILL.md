@@ -2,7 +2,7 @@
 name: research-progress-summary
 description: Generates concise, evidence-linked weekly, monthly, or yearly research progress reports from daily records, experiments, research notes, meetings, and deliverables; weekly reports use a confirmed, editable offline interactive HTML workflow. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for daily canvas entries, one paper or meeting, or manuscript drafting.
 metadata:
-  version: "1.7"
+  version: "1.8"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -53,7 +53,7 @@ metadata:
 - 周报、月报和年报中的结论句直接陈述当前状态、证据边界或待验证项。结论前不加“一句话结论”“结论”等标题或前缀；HTML 中以高对比黑色粗体显示，Markdown 中直接使用粗体。需要校准边界时拆成独立事实句，减少否定式对照和修辞转折。
 - 周总结中的所有新建或重绘数据图必须调用 `scientific-plotting` Skill，并同时遵守周模式的交互、离线和浏览器验证要求。
 - 用户要求落盘时，遵循当前科研资料库的项目路由，将成品写入对应的 weekly、monthly 或 yearly 目录，并保留来源索引；任何只读外部资料根都不能作为输出位置。
-- 生成后做一次证据检查：日期范围正确、完成与计划未混淆、关键数字有来源、没有把 AI 建议伪装成科研结论。
+- 交付前核对日期范围、完成与计划的区分、关键数字来源和建议归属；复用资料整理时已完成的核对，只复查新增或改动的结论。周总结按离线 HTML 参考文件完成一次轻量检查，检查深度随实际改动和异常调整。
 
 ## 常见失败模式
 
