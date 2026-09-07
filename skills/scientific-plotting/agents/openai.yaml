@@ -1,4 +1,4 @@
 interface:
   display_name: "Scientific Plotting"
-  short_description: "Create readable scientific figures for reports and talks."
-  default_prompt: "Use $scientific-plotting to create or revise this scientific figure for clear report and presentation use."
+  short_description: "Create traceable figures and standard semantic scientific SVG."
+  default_prompt: "Use $scientific-plotting to create or revise an independently interpretable scientific figure from authoritative data, qualified inline-data HTML, or grouped vector sources, and output a standard semantic SVG or requested editable HTML with explicit provenance and coordinate confidence."

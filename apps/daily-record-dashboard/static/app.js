@@ -1310,10 +1310,6 @@ function bindEvents() {
   elements.canvasViewport.addEventListener("pointerup", handleViewportPointerUp);
   elements.canvasViewport.addEventListener("pointercancel", handleViewportPointerUp);
   elements.canvasViewport.addEventListener("wheel", handleWheel, {passive: false});
-  elements.canvasViewport.addEventListener("dblclick", (event) => {
-    if (event.target.closest?.(".canvas-item")) return;
-    createTextAt(worldPointFromEvent(event));
-  });
 
   document.addEventListener("paste", (event) => {
     const files = Array.from(event.clipboardData?.items || [])

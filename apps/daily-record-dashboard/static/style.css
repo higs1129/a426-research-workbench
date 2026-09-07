@@ -584,6 +584,148 @@ h1 {
   font-size: 14px;
 }
 
+/* Desktop: keep the controls compact and give the canvas all remaining space. */
+@media (min-width: 761px) {
+  body {
+    overflow: hidden;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hero {
+    display: contents;
+  }
+
+  .hero > div:first-child {
+    display: none;
+  }
+
+  .save-state {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    max-width: 40vw;
+    margin: 6px 12px;
+    padding: 6px 12px;
+  }
+
+  .save-dot {
+    flex-shrink: 0;
+  }
+
+  .date-bar {
+    position: static;
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    margin: 6px 12px;
+    padding: 3px;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .date-control {
+    min-width: 120px;
+    min-height: 30px;
+  }
+
+  .board-card {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-inline: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .board-heading {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+  }
+
+  #friendlyDate {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .board-heading .hint {
+    display: none;
+  }
+
+  .zoom-group button {
+    height: 30px;
+  }
+
+  .board-toolbar {
+    flex: 0 0 auto;
+    min-height: 46px;
+    padding: 6px 12px;
+  }
+
+  .tool-button {
+    padding: 6px 10px;
+  }
+
+  .canvas-viewport {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+
+  .board-footer {
+    flex: 0 0 auto;
+    padding: 5px 12px;
+  }
+
+  .recent {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 12px;
+  }
+
+  .recent-heading {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .recent-heading h2 {
+    font-size: 13px;
+  }
+
+  .recent-heading span {
+    display: none;
+  }
+
+  .recent-dates {
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .recent-date {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    font-size: 13px;
+  }
+}
+
 @media (max-width: 760px) {
   .shell {
     width: min(100% - 18px, 1180px);

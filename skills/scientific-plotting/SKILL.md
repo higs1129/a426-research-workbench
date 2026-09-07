@@ -1,146 +1,127 @@
 ---
 name: scientific-plotting
-description: Creates, updates, or regenerates scientific figures for experiments, measurements, reports, talks, session records, and data analysis with projection-readable layout and traceable visual choices. Use when a figure is an intended output or an existing figure must be revised. Do not use for interpreting an unchanged figure, general image editing, or decorative illustration.
+description: Creates, regenerates, or revises traceable scientific figures and standard semantic SVG from authoritative data, qualified inline-data HTML, or grouped vector sources. Use when a scientific figure is an intended output or must be made structurally editable. Do not use for interpreting an unchanged figure, page-level poster layout, general image editing, or decorative illustration.
 metadata:
-  version: "1.0"
+  version: "2.3"
   skill-author: "Personal Research Workflow"
 ---
 
 # Scientific Plotting
 
-## Purpose and boundaries
+## Purpose and boundary
 
-Every new figure should be readable when projected in a meeting room. Prioritize clear communication over packing everything inside the axes.
+Create scientific figures that remain interpretable at their declared delivery size and whose data, axes, labels, legends, and annotations have stable semantic structure. This Skill owns scientific-figure generation and reconstruction. A parent poster or report owns page placement.
 
-This skill applies to new plots only unless the user asks to revise old figures.
+Do not treat an SVG extension as proof of recoverable data or semantics. Preserve provenance and distinguish exact regeneration from approximate canvas reconstruction.
 
-It governs visual construction and verification, not the scientific interpretation of unchanged figures. Preserve data provenance and do not let styling, smoothing, or annotation imply evidence the data do not contain.
+## Fixed source route
 
-## When to use
+For a new or revised scientific figure, use the first available route and do not skip ahead for convenience:
 
-- Use for a new or revised scientific plot, multipanel figure, quicklook, report figure, slide figure, or `session.md` figure.
-- Use when plotting choices affect raw/processed data distinction, units, uncertainty, readability, or visual emphasis.
-- Do not use when the task is only to explain an existing figure, edit a photograph, create decorative artwork, or write prose without producing a figure.
+1. **Authoritative data and plotting code** — regenerate the figure exactly.
+2. **Qualified self-contained inline-data HTML** — extract the embedded physical data, units, scales, series semantics, configuration, and provenance, then regenerate exactly.
+3. **Grouped AI or independent structured SVG** — export all requested panels once, read the old axes, units, ticks, legends, annotations, object groups, and canvas geometry, build an explicit figure model, discard the old visual axes/text/tspan fragments, and redraw a standard semantic SVG. When only canvas coordinates are recoverable, mark the result as approximate reconstruction.
+4. **Otherwise stop** — request a grouped AI source or an independent SVG. Do not substitute a screenshot, raster crop, white-mask cleanup, partial-label patch, or hand-guessed axis.
 
-## Reproducible workflow
+Grouped AI must expose explicit panel groups or artboards. Convert or open one source once and batch-export its panels; do not repeatedly start an external editor. Illustrator/COM is not a default route and may be used only after explicit user permission and one successful capability probe.
 
-1. Identify the scientific question, intended audience, output format, target display size, data source, units, and whether the figure is exploratory or final.
-2. Inspect the authoritative data and distinguish raw values, transformations, fits, smoothing, uncertainty, and annotations.
-3. Choose the smallest layout that communicates the comparison without covering data or shrinking text; split panels when necessary.
-4. Generate the figure with explicit labels, units, visual hierarchy, and output path outside tracked repositories when the figure is a research artifact.
-5. Render the actual PNG, SVG, PDF, or HTML and inspect it at its intended scale.
-6. Apply the validation gate below and revise until no material clipping, overlap, ambiguity, or misleading emphasis remains.
+Read [references/source-and-svg-contract.md](references/source-and-svg-contract.md) whenever the source is inline-data HTML, AI, SVG, EPS, PDF, or a quantitative raster field.
 
-## Evidence and visual validation
+## Standard output contract
 
-Treat readability as a hard gate for every report, weekly-summary, monthly-summary, and meeting figure. A figure is not finished until it can be read at normal browser zoom or slide scale without zooming into the page.
+Generate one standard semantic SVG for each independently interpretable scientific module. Use only these publication baselines unless the user or journal provides another explicit specification:
 
-- Do not shrink fonts to fit more traces, panels, captions, or legend text. Split into more panels, move legends outside the axes, or reduce the number of visible traces.
-- Use black, bold axis labels and tick labels by default. Gray text is acceptable only for secondary captions or de-emphasized notes outside the main data area.
-- Use boxed axes for standalone scientific plots: left, bottom, right, and top borders should be visible unless a local style guide requires otherwise.
-- Use outward ticks when possible. Tick marks should be long enough to be visible on screenshots and projectors.
-- Leave enough margins around all axes so the first and last tick labels are not clipped, especially at `0`, `1000`, and powers of ten.
-- Keep axis titles separated from tick labels, but not so far away that the axis looks detached. Adjust label padding and plot margins instead of moving tick labels off their ticks.
-- Put legends, run parameters, and bandwidth text where they do not cover peaks, dips, bandwidth windows, best-point markers, or important raw fluctuations.
-- If a bandwidth label conflicts with data, place the label near the corresponding threshold line or directly below the shaded bandwidth region, not on top of the feature being discussed.
-- Use one clear frequency axis convention within a figure group. For related noise, response, and NEP plots, stack panels vertically and share the same frequency axis whenever comparison across frequency matters.
-- Preserve visual hierarchy for raw and processed curves:
-  - raw data: plotted first, slightly thicker, semi-transparent;
-  - smoothed or fitted guide: plotted on top, slightly thinner, high opacity;
-  - exact numeric optima should still come from raw data unless the user explicitly asks otherwise.
-- For dense comparison plots, avoid making all lines fully opaque. Use alpha, small multiples, or interactive selection so the trend remains visible.
-- Before finishing, do at least one rendered visual check when practical: open the HTML/PDF/PNG, or capture a screenshot, and check for clipped labels, unreadable ticks, overlap, and misleading visual emphasis.
+- `90mm-single`: 85–90 mm final width;
+- `185mm-double`: 180–185 mm final width for a single wide plot;
+- `185mm-composite`: 180–185 mm final width for a true multipanel composite.
 
-## Default Figure Style
+The SVG must:
 
-- Use large fonts by default:
-  - title: 20-24 pt
-  - axis labels: 18-22 pt
-  - tick labels: 16-18 pt
-  - legend/text annotations: 15-18 pt
-- Use sufficiently thick lines and markers:
-  - line width: at least 2 px for main traces
-  - raw trace with smoothing overlay: about 2.4-2.8 px with 0.4-0.6 opacity
-  - smoothed/fitted trace: about 1.5-1.8 px with 0.9-1.0 opacity
-  - marker size: at least 6-8 px when markers matter
-- Use high enough output resolution:
-  - PNG: at least 180-300 dpi for reports or slides
-  - SVG/PDF is preferred when the downstream document supports vector figures
-- Keep color choices distinguishable on a projector and in grayscale when possible.
+- use `data-role="scientific-figure"` on the root;
+- declare physical `width`/`height` in millimetres and use the same numeric dimensions in `viewBox`, with `data-user-unit-mm="1"`; one SVG user unit then equals one millimetre at the declared delivery size;
+- embed a JSON figure model in `<metadata data-role="figure-model">`;
+- declare `data-source-origin` and `data-coordinate-confidence` as either exact or approximate;
+- keep text live and use semantic `<tspan>` subscript/superscript when needed;
+- separate data series, axes, x/y ticks, axis titles, legend, annotations, plot area, and raster field with stable ids, classes, and `data-role` values;
+- centralize typography and stroke settings in CSS variables;
+- retain each curve or point series as an independent path, polyline, or symbol group;
+- keep a quantitative heatmap as an embedded raster field only when its axes, ticks, titles, colorbar, and annotations remain vector;
+- use the font stack `Calibri, "Microsoft YaHei", sans-serif`;
+- contain no scripts, event handlers, network dependencies, machine-local paths, legacy SVG fonts, whole-figure non-uniform scaling, or `non-scaling-stroke`.
 
-## Labels And Legends
+The figure model is the production interface. It records axis domains and scales, ticks, series points or normalized reconstruction geometry, labels, units, legend and annotation semantics, profile, source origin, coordinate confidence, and any raster-field calibration. A vector reconstruction with only canvas coordinates must use:
 
-- Do not let legends, text boxes, or parameter labels cover important curves, peaks, dips, ticks, grid labels, or annotations.
-- If a legend or parameter description is long, place it outside the plotting axes, usually on the right or below the plot.
-- Put detailed run parameters in the caption, side panel, or session text instead of inside the data area.
-- Prefer concise labels in the figure and fuller explanations in `session.md`.
+```text
+data-source-origin="canvas-reconstruction"
+data-coordinate-confidence="approximate"
+```
 
-### Layout checks
+Data/code and qualified inline-data HTML use exact confidence. Never upgrade approximate geometry to an exact scientific claim.
 
-Before saving a figure:
+Use [scripts/render_semantic_svg.py](scripts/render_semantic_svg.py) to render a figure model and [scripts/check_semantic_svg_integrity.py](scripts/check_semantic_svg_integrity.py) for cheap file-integrity checks. These helpers do not decide the scientific meaning of a panel.
 
-1. Check that axis labels and tick labels are not clipped.
-2. Check that the legend does not overlap the plotted signal or key annotations.
-3. Check that long labels wrap or move outside the axes.
-4. Check that the figure still works at slide scale, not only when zoomed in.
-5. If there are multiple stages or parameter groups, use color bands or separate panels with a clear external legend.
+For an interactive report figure, the selected adapter owns its semantic SVG as well as its live view. Read [references/report-component.md](references/report-component.md). The Matplotlib component exports the current rendered SVG with model and semantic roles; a second call to the standalone semantic renderer is unnecessary. Its export converts Matplotlib point coordinates to the calibrated millimetre root through a declared uniform unit conversion, preserving physical size and layout.
 
-Also verify that:
+## Figure construction rules
 
-- every plotted quantity has an authoritative source and correct unit;
-- data, fits, theory, smoothing, and guides-to-the-eye are visually and verbally distinguishable;
-- uncertainty is shown when supported and not fabricated for single acquisitions;
-- exact numeric claims come from the declared source rather than a visually convenient smoothed curve;
-- the final file opens correctly and remains legible at slide, report, or publication size.
+- Each module completes its own task and normally owns complete axes, units, ticks, legend, colorbar, scale bar, and claim-bearing annotations.
+- Group modules only when they genuinely share an axis, legend, colorbar, cross-panel annotation, or comparison geometry. Do not prescribe heatmap-plus-spectrum, time-trace-plus-histogram, or any other chart-type pairing.
+- Use boxed axes for ordinary quantitative plots unless an explicit local style requires open axes.
+- Keep titles, axis labels, ticks, and in-figure text black with normal or bold weight. Do not use gray or light-weight text to create hierarchy.
+- Omit grid lines unless the user requests them.
+- Aim for about 5–6 readable major ticks on linear axes using round intervals.
+- For scatter and point-line series, use a default marker diameter equal to `0.5 ×` the axis tick-label font size. Treat this as a presentation default rather than a data property: preserve an explicit user or source override, keep the marker diameter independently editable, and store the edited value in semantic figure state.
+- Place legends and annotations away from data-bearing peaks, dips, uncertainty, and thresholds.
+- Distinguish raw data, processed data, fit/theory, smoothing, uncertainty, and guides visually and in metadata.
+- Do not non-uniformly scale a whole figure. A calibrated heatmap raster field may map into its declared plot box; photographs and micrographs remain proportional.
+- A font change requires layout reflow. Do not apply a blanket point-size increase without recomputing margins and positions.
+- Treat the physical viewport and typography as independent inputs. Changing the target width/height regenerates the plot geometry in the new millimetre coordinate system; it must not silently shrink the intended physical type or stroke tokens to force a fit.
+
+Read [assets/style-profiles.json](assets/style-profiles.json) for ordinary 90 mm and 185 mm typography/stroke defaults. User, journal, accessibility, or established local requirements override them.
+
+## Editable HTML mode
+
+When the user requests an editable HTML figure, read [references/editable-html.md](references/editable-html.md). Editable HTML is a separate delivery wrapper around an authoritative data/state model and SVG view; it is not a poster-specific profile.
+
+For an ordinary single-linear-axes Matplotlib line, scatter, or spectrum, use [references/matplotlib-fast-path.md](references/matplotlib-fast-path.md) and [scripts/render_matplotlib_editable.py](scripts/render_matplotlib_editable.py). Use [references/renderer-contract.md](references/renderer-contract.md) only for genuinely custom or multi-axes interaction.
+
+The model proposes scientific content, chart type, initial domains and placement. After confirmation, keep authoritative data, processing, complete presentation state and adapter identity together. Report reading, expanded inspection, saving and export consume that component. Explicit user edits update current state; opening a viewer changes the surrounding container only. Capability gaps require a concrete explanation and confirmation before switching the selected adapter or design.
+
+## Completion and integrity language
+
+Run only cheap checks by default: parseability, finite numbers, required model/roles, unique ids, resolved local references, retained text/data objects, and declared fallback fonts. Do not automatically generate browser screenshots, run aesthetic review loops, or declare scientific correctness, `PASS`, publication readiness, or print readiness.
+
+At handoff report:
+
+- source route and provenance;
+- standard profile and output file;
+- exact or approximate coordinate confidence;
+- any missing source semantics or manual reconstruction;
+- that file integrity was checked and scientific/visual approval remains with the user.
 
 ## Failure modes
 
-- Finishing from source code without rendering and inspecting the actual output.
-- Shrinking fonts to accommodate too many curves, panels, parameters, or legend entries.
-- Allowing legends, labels, or shaded regions to obscure peaks, dips, thresholds, markers, or raw fluctuations.
-- Styling a smoothed or fitted trace so strongly that it appears to be the measurement, or extracting exact optima from the smoothed guide without disclosure.
-- Mixing incompatible frequency axes, units, normalizations, or calibration assumptions in one visual comparison.
-- Saving final research figures into a tracked code repository instead of the user-provided or project-defined data/output location.
-- Applying the default style mechanically when a journal, accessibility requirement, grayscale output, or local figure system requires a different choice.
+- Cropping or masking a quantitative plot instead of using the fixed source route.
+- Reading grouped AI/SVG curve geometry before first recovering axis, unit, tick, legend, and annotation semantics.
+- Keeping old Illustrator axes and text while also drawing new ones.
+- Treating canvas-space vector paths as exact physical data.
+- Returning an SVG that only wraps a plot screenshot.
+- Prescribing subplot combinations from chart types rather than scientific coupling.
+- Applying non-uniform scaling to a whole figure or photograph.
+- Converting live text to outlines or retaining legacy `<font>/<glyph>` tables.
+- Mutating measured points, fitted coordinates, tick values, color mappings, or data-linked anchors during presentation edits.
+- Declaring a figure scientifically correct because a parser or integrity checker succeeded.
 
-## Tool-specific defaults
+## Resources
 
-### Matplotlib
-
-When using Matplotlib, start from settings like:
-
-```python
-plt.rcParams.update({
-    "font.size": 16,
-    "axes.titlesize": 22,
-    "axes.labelsize": 20,
-    "xtick.labelsize": 17,
-    "ytick.labelsize": 17,
-    "legend.fontsize": 16,
-    "axes.labelweight": "bold",
-    "axes.titleweight": "bold",
-    "font.weight": "bold",
-    "lines.linewidth": 2.4,
-    "figure.dpi": 150,
-    "savefig.dpi": 300,
-    "savefig.bbox": "tight",
-})
-```
-
-For long legends:
-
-```python
-fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
-ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
-```
-
-If the external legend needs more room, enlarge the figure instead of shrinking fonts.
-
-### Measurement figures
-
-For scope traces, spectra, PID sweeps, and lock timelines:
-
-- Clearly state what each channel means, not only `CH1` or `CH2`.
-- Put key numeric settings outside the axes when they are long.
-- If showing lock stages, mark stages with readable color bands and a legend outside the data area.
-- When plotting an accepted data group for external `session.md`, save both the raw data path and the representative figure path under `$DAILY_NOTE_DATA_ROOT` or a user-provided external output directory. Do not save generated figures into tracked repo paths.
+- [references/source-and-svg-contract.md](references/source-and-svg-contract.md): source hierarchy, figure-model schema, grouped-vector reconstruction, semantic SVG structure, and heatmap rules.
+- [references/editable-html.md](references/editable-html.md): editable browser delivery and semantic state.
+- [references/matplotlib-fast-path.md](references/matplotlib-fast-path.md): maintained standard Matplotlib-to-editable-HTML path.
+- [references/renderer-contract.md](references/renderer-contract.md): custom interactive SVG adapter boundary.
+- [assets/style-profiles.json](assets/style-profiles.json): standard physical figure profiles.
+- [scripts/render_semantic_svg.py](scripts/render_semantic_svg.py): deterministic standard semantic SVG renderer from an explicit figure model.
+- [scripts/check_semantic_svg_integrity.py](scripts/check_semantic_svg_integrity.py): cheap structural and dependency integrity check without a scientific verdict.
+- [scripts/render_matplotlib_editable.py](scripts/render_matplotlib_editable.py): maintained editable Matplotlib renderer.
+- [scripts/bundle_editable_figure.py](scripts/bundle_editable_figure.py): offline editable-HTML bundler.
+- [references/report-component.md](references/report-component.md): report integration, portable state and targeted development regression.
+- [scripts/bundle_report_figures.py](scripts/bundle_report_figures.py): embeds qualified components in a report shell without redrawing.

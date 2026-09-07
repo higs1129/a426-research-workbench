@@ -108,6 +108,15 @@ class DashboardServerTest(unittest.TestCase):
         payload = self.request_json("/api/dates")
         self.assertEqual(payload["dates"], ["2026-08-20", "2026-08-19", "2026-08-18"])
 
+    def test_canvas_does_not_create_text_on_double_click(self) -> None:
+        with urllib.request.urlopen(f"{self.base_url}/app.js", timeout=5) as response:
+            app_script = response.read().decode("utf-8")
+        with urllib.request.urlopen(f"{self.base_url}/", timeout=5) as response:
+            page = response.read().decode("utf-8")
+
+        self.assertNotIn('addEventListener("dblclick"', app_script)
+        self.assertIn("选择“文字”后点击画布写字", page)
+
     def test_free_canvas_round_trip_preview_and_markdown(self) -> None:
         uploaded = self.request_json(
             "/api/image?date=2026-08-20",

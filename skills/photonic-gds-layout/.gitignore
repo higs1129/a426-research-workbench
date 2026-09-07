@@ -1,0 +1,5 @@
+# Generated reference layouts, preview screenshots and verification runs.
+# Keep the reusable design specification and test drivers in Git.
+/tests/fixtures/microring-r200-euler*.gds
+/tests/fixtures/microring-r200-euler*.png
+/tests/fixtures/microring-r200-euler*-verification.json

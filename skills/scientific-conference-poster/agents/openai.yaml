@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scientific Conference Poster"
+  short_description: "Readable flat-layout HTML research poster workflow"
+  default_prompt: "Use $scientific-conference-poster to prepare a source-exact research poster through confirmed content, a production-binding editable HTML wireframe, in-place formal replacement, standard semantic scientific SVG adapted to approved slots, and cheap file-integrity checks followed by user review."

@@ -1,8 +1,8 @@
 ---
 name: research-progress-summary
-description: Generates concise, evidence-linked weekly, monthly, or yearly research progress summaries from daily records, experiments, research notes, meetings, and deliverables. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for writing daily canvas entries, cleaning a single day's notes, summarizing one paper or meeting, or drafting a manuscript.
+description: Generates concise, evidence-linked weekly, monthly, or yearly research progress reports from daily records, experiments, research notes, meetings, and deliverables; weekly reports use a confirmed, editable offline interactive HTML workflow. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for daily canvas entries, one paper or meeting, or manuscript drafting.
 metadata:
-  version: "1.0"
+  version: "1.9"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -10,7 +10,7 @@ metadata:
 
 ## 目的与边界
 
-把分散的科研记录压缩成可追溯、便于复盘的周期总结。每日画布是原始输入之一，不在本 Skill 中生成日总结。
+把分散的科研记录压缩成可追溯、便于复盘的周期总结。每日画布是原始输入之一，不在本 Skill 中生成日总结。周总结的正式成品默认是可编辑、包含交互科研图的单文件离线 HTML；月总结和年总结仍按各自模式选择合适格式。
 
 本 Skill 只形成周期性科研进展底稿，不替代单篇论文写作、单场会议总结、单篇文献解读或当天画布记录。评优、答辩和申请材料应在事实底稿形成后另行适配目标模板。
 
@@ -21,11 +21,11 @@ metadata:
 
 ## 可复现工作流
 
-1. 明确总结类型、起止日期、目标读者和是否需要落盘。用户未给日期时，根据“本周、本月、本年度”等自然语言推定，并明确写出范围。
+1. 明确总结类型、起止日期、目标读者和是否需要落盘。周总结使用周模式规定的固定窗口；其他模式在用户未给日期时根据自然语言推定，并明确写出范围。
 2. 读取 [references/source-routing.md](references/source-routing.md)，根据用户明确资料、项目规则和数据根定位证据。
-3. 只读取对应时间尺度的模式文件，按研究主线归并资料，而不是按文件夹或日期机械拼接。
+3. 只读取对应时间尺度的模式文件，以研究主线为单位归并资料。
 4. 对关键进展核验事实、数字、状态和来源，区分完成、进行中、待验证和计划。
-5. 生成简洁中文 Markdown，并保留代表性来源路径或链接。
+5. 按对应模式完成讨论、结构确认和交付物生成；周总结必须先通过内容讨论与草图确认门，再生成正式离线 HTML。
 6. 按“证据与验证”完成自查；用户只要求查看时在聊天中提供草稿，用户要求落盘时再遵循项目路由写入文件。
 
 ### 时间尺度路由
@@ -42,13 +42,18 @@ metadata:
 
 - 以用户明确提供的资料和项目 `AGENTS.md` 指定的数据根为准；找不到可靠资料时说明缺口，不从文件时间、运行日志或目录缺失反推科研事实。
 - 区分事实/观察、用户判断、推导、AI 建议和待确认事项。推导必须标注依据，不能把计划写成已完成。
-- 周报、月报、年报是不同压缩层级，不是逐级机械拼接。下一级总结可作为索引，但关键结论仍应回到代表性证据核验。
+- 周报、月报、年报采用不同压缩层级。下一级总结用于定位索引，关键结论回到代表性证据核验。
 - 保留关键来源路径或文档链接，使成果、数字和判断可回溯；不要把全部文件清单堆进正文。
 - 优先写实质进展、证据、问题、决策和下一步，压缩过程闲聊、重复尝试和无结论的工具操作。
+- 正文只记录已经发生的动作、观察到的现象、当前状态、证据支持的判断和下一步行动。不要为版面中本来就没有的内容补写“未纳入”“不包含”“不讨论”“不涉及”“没有进行”“仅记录”等防御式声明，也不要把生成过程中的取舍和防误解提示带入正式报告。
+- 需要界定证据范围时，正向写明本期判断实际依据的时间、样本、数据集和验证状态。只有某项排除本身是已执行的数据处理动作，且会实质影响复现、比较或结论解释时，才在方法或来源细节中记录排除依据、规则和影响。
+- 各模式参考文件中的内容结构只提供可能的阅读路径，不是固定模板。根据当期实际研究主线、证据关系和读者需求重组章节，允许删除、合并、拆分、改序和重拟标题；没有相应内容时不创建章节，内容与示例标题不匹配时使用能准确概括研究对象、动作或问题的标题。
 - 篇幅随有效信息量变化；资料少时不要用模板制造空内容，资料多时按研究主线归并。
-- 默认使用简洁中文 Markdown；表格只用于确有比较关系的数字、任务或证据。
-- 用户要求落盘时，遵循当前科研资料库的项目路由，将成品写入对应的 weekly、monthly 或 yearly 目录，并保留来源索引。
-- 生成后做一次证据检查：日期范围正确、完成与计划未混淆、关键数字有来源、没有把 AI 建议伪装成科研结论。
+- 月总结和年总结默认使用简洁中文 Markdown；周总结使用简洁中文内容与离线 HTML 载体。表格只用于确有比较关系的数字、任务或证据。
+- 周报、月报和年报中的结论句直接陈述当前状态、证据边界或待验证项。结论前不加“一句话结论”“结论”等标题或前缀；HTML 中以高对比黑色粗体显示，Markdown 中直接使用粗体。需要校准边界时拆成独立事实句，减少否定式对照和修辞转折。
+- 周总结中的新建或重绘数据图由 `scientific-plotting` 生成并提供组件。周报负责图文位置、说明、来源和整份报告保存；图内数据映射、样式、交互、状态和导出由绘图组件负责。正文与放大查看复用同一实例，按周模式完成一次轻量嵌入检查。
+- 用户要求落盘时，遵循当前科研资料库的项目路由，将成品写入对应的 weekly、monthly 或 yearly 目录，并保留来源索引；任何只读外部资料根都不能作为输出位置。
+- 交付前核对日期范围、完成与计划的区分、关键数字来源和建议归属；复用资料整理时已完成的核对，只复查新增或改动的结论。周总结按离线 HTML 参考文件完成一次轻量检查，检查深度随实际改动和异常调整。
 
 ## 常见失败模式
 
@@ -57,11 +62,18 @@ metadata:
 - 把计划、AI 建议、推测或尚未核验的数字写成已完成结论。
 - 依赖已有总结而不回查代表性证据，导致错误逐级放大。
 - 为填满固定模板制造空内容，或把完整文件清单堆进正文。
+- 机械沿用参考结构的章节名称和顺序，把明显不相干的内容硬塞进“核心进展”“关键证据与判断”等泛化栏目。
+- 用“未纳入某资料”“不包含某工作”等句子解释没有出现在报告中的内容，导致长期复盘时无法分辨实际事件与当时的写作防御。
+- 未完成讨论和草图确认就直接生成正式周报，或不经说明让版式相对上期大幅漂移。
+- 把周报草图只保存在 Codex 临时可视化目录，没有写入当周周报目录的 `assets/`。
+- 周报依赖 CDN、联网字体或远程脚本，导致离线打开后图表失效。
+- 对项目声明的只读外部资料根执行写入，或把缓存、临时文件和导出结果放入其中。
 - 用户未要求落盘时擅自写文件，或覆盖已有成品而未核对项目规则。
 
 ## 参考资料
 
 - [references/source-routing.md](references/source-routing.md)：定位资料、判断证据层级和生成来源索引时读取。
 - [references/weekly.md](references/weekly.md)：仅在生成周总结时读取。
+- [references/interactive-weekly-report.md](references/interactive-weekly-report.md)：由周总结模式路由，在设计草图、生成和验收正式离线 HTML 时读取。
 - [references/monthly.md](references/monthly.md)：仅在生成月总结时读取。
 - [references/yearly.md](references/yearly.md)：仅在生成年总结时读取。

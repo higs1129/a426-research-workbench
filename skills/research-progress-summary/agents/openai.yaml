@@ -1,4 +1,4 @@
 interface:
   display_name: "Research Progress Summary"
-  short_description: "Summarize weekly, monthly, and yearly research progress."
-  default_prompt: "Use $research-progress-summary to create a concise, traceable research progress summary for the requested period."
+  short_description: "Create traceable periodic research progress reports."
+  default_prompt: "Use $research-progress-summary to create a traceable research report, using the confirmed editable offline HTML workflow for a weekly report."

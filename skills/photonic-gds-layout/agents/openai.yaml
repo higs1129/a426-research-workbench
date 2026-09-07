@@ -1,0 +1,4 @@
+interface:
+  display_name: "Photonic GDS Layout"
+  short_description: "Design and verify photonic layouts through KLayout and klink."
+  default_prompt: "Use $photonic-gds-layout to turn this cavity sketch or KLayout selection into a parameterized, verified GDS layout."

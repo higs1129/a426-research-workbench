@@ -1,0 +1,53 @@
+design:
+  name: "microring-r200-euler-edge-test"
+  top_cell: "MICRORING_R200_EULER"
+  mode: "new"
+  dbu_um: 0.00001
+  source_intent: "2026-08-26 daily-canvas topology: microring below a straight coupling bus, with Euler transitions to left and right edge straights."
+
+layers:
+  device: [1, 0]
+
+unit_cell:
+  family: "microring"
+  source: "new"
+  parameters:
+    radius_um: 200.0
+    width_um: 2.0
+  tessellation:
+    midpoint_chord_deviation_nm: 0.1
+
+waveguide:
+  width_um: 2.0
+  coupling_gap_um: 1.0
+  coupling_length_um: 700.0
+  route_kind: "euler-edge-transition"
+  euler:
+    min_radius_um: 80.0
+    points_per_90_deg: 256
+  left_edge:
+    straight_length_um: 260.0
+    vertical_drop_um: 260.0
+  right_edge:
+    straight_length_um: 300.0
+    vertical_drop_um: 80.0
+
+ports:
+  - name: "opt_in"
+    role: "input"
+    orientation_deg: 180
+  - name: "opt_out"
+    role: "output"
+    orientation_deg: 0
+
+verification:
+  checks:
+    - "gds_readback"
+    - "critical_dimensions"
+    - "route_continuity"
+    - "ring_tessellation"
+
+export:
+  working_gds: "microring-r200-euler-working.gds"
+  clean_gds: "microring-r200-euler-clean.gds"
+  allowlist: ["device"]
