@@ -1,0 +1,54 @@
+design:
+  name: "replace-me"
+  top_cell: "TOP"
+  mode: "new"
+  dbu_um: 0.001
+  source_intent: "Describe the sketch, KLayout selection, or legacy source."
+
+layers:
+  device: [1, 0]
+  annotation: [100, 0]
+
+unit_cell:
+  family: "microring"
+  source: "new"
+  parameters:
+    radius_um: null
+    width_um: null
+  tessellation:
+    midpoint_chord_deviation_nm: null
+
+waveguide:
+  width_um: null
+  coupling_gap_um: null
+  coupling_length_um: null
+  route_kind: "euler-edge-transition"
+  euler:
+    min_radius_um: null
+    points_per_90_deg: 256
+  left_edge:
+    straight_length_um: null
+    vertical_drop_um: null
+  right_edge:
+    straight_length_um: null
+    vertical_drop_um: null
+
+ports:
+  - name: "opt_in"
+    role: "input"
+    orientation_deg: 180
+  - name: "opt_out"
+    role: "output"
+    orientation_deg: 0
+
+verification:
+  checks:
+    - "gds_readback"
+    - "critical_dimensions"
+    - "route_continuity"
+    - "ring_tessellation"
+
+export:
+  working_gds: "working.gds"
+  clean_gds: "final-clean.gds"
+  allowlist: ["device"]
