@@ -2,7 +2,7 @@
 name: research-progress-summary
 description: Generates concise, evidence-linked weekly, monthly, or yearly research progress reports from daily records, experiments, research notes, meetings, and deliverables; weekly reports use a confirmed, editable offline interactive HTML workflow. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for daily canvas entries, one paper or meeting, or manuscript drafting.
 metadata:
-  version: "1.9"
+  version: "1.10"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -40,7 +40,7 @@ metadata:
 
 ## 证据与验证
 
-- 以用户明确提供的资料和项目 `AGENTS.md` 指定的数据根为准；找不到可靠资料时说明缺口，不从文件时间、运行日志或目录缺失反推科研事实。
+- 以用户明确提供的资料和项目 `AGENTS.md` 指定的数据根为准，可包括本地资料及 W 盘等只读来源；按来源路由筛选并合并证据。找不到可靠资料时说明缺口，不从文件时间、运行日志或目录缺失反推科研事实。
 - 区分事实/观察、用户判断、推导、AI 建议和待确认事项。推导必须标注依据，不能把计划写成已完成。
 - 周报、月报、年报采用不同压缩层级。下一级总结用于定位索引，关键结论回到代表性证据核验。
 - 保留关键来源路径或文档链接，使成果、数字和判断可回溯；不要把全部文件清单堆进正文。
