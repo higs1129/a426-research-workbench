@@ -2,7 +2,7 @@
 name: research-progress-summary
 description: Generates concise, evidence-linked weekly, monthly, or yearly research progress reports from daily records, experiments, research notes, meetings, and deliverables; weekly reports use a confirmed, editable offline interactive HTML workflow. Use for 周总结、月总结、年总结、阶段科研进展回顾 or research progress reports. Do not use for daily canvas entries, one paper or meeting, or manuscript drafting.
 metadata:
-  version: "1.9"
+  version: "1.11"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -42,7 +42,7 @@ metadata:
 
 - 以用户明确提供的资料和项目 `AGENTS.md` 指定的数据根为准；找不到可靠资料时说明缺口，不从文件时间、运行日志或目录缺失反推科研事实。
 - 区分事实/观察、用户判断、推导、AI 建议和待确认事项。推导必须标注依据，不能把计划写成已完成。
-- 周报、月报、年报采用不同压缩层级。下一级总结用于定位索引，关键结论回到代表性证据核验。
+- 周报、月报、年报采用不同压缩层级。月报按月模式从已选周报提取工作并复用已核验证据；其他模式以下一级总结定位索引、回查代表性证据。新增或变更结论、来源冲突和证据缺口才触发进一步核验。
 - 保留关键来源路径或文档链接，使成果、数字和判断可回溯；不要把全部文件清单堆进正文。
 - 优先写实质进展、证据、问题、决策和下一步，压缩过程闲聊、重复尝试和无结论的工具操作。
 - 正文只记录已经发生的动作、观察到的现象、当前状态、证据支持的判断和下一步行动。不要为版面中本来就没有的内容补写“未纳入”“不包含”“不讨论”“不涉及”“没有进行”“仅记录”等防御式声明，也不要把生成过程中的取舍和防误解提示带入正式报告。
@@ -60,7 +60,7 @@ metadata:
 - 把周报写成逐日流水账，或把月报、年报写成下一级总结的拼接。
 - 只依据文件数量、修改时间或操作次数判断科研进展。
 - 把计划、AI 建议、推测或尚未核验的数字写成已完成结论。
-- 依赖已有总结而不回查代表性证据，导致错误逐级放大。
+- 沿用已有总结中的未核验或冲突结论，导致错误逐级放大；已有核验可复用，变化处需复查。
 - 为填满固定模板制造空内容，或把完整文件清单堆进正文。
 - 机械沿用参考结构的章节名称和顺序，把明显不相干的内容硬塞进“核心进展”“关键证据与判断”等泛化栏目。
 - 用“未纳入某资料”“不包含某工作”等句子解释没有出现在报告中的内容，导致长期复盘时无法分辨实际事件与当时的写作防御。
