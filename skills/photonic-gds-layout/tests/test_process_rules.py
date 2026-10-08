@@ -9,7 +9,7 @@ import klayout.db as kdb
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from process_rules import (check_field_containment, dimension_label, format_nm_as_um,
-                           layers_for_writefield, load_profile, validate_annotation_cell, validate_annotation_geometry,
+                           layers_for_writefield, load_profile, resolve_process_defaults, validate_annotation_cell, validate_annotation_geometry,
                            validate_layer_assignment, validate_pad_groups,
                            validate_writefields, writefield_boxes)
 
@@ -35,6 +35,67 @@ class ProcessRulesTests(unittest.TestCase):
         self.assertIn("wrong_layer", self.codes(validate_layer_assignment("electrode", (10, 1), 1000)))
         with self.assertRaises(ValueError):
             layers_for_writefield(750)
+
+    def multi_group_spec(self):
+        return {"process": {"profile": "sin-user-process", "exposure_groups": [
+                    {"id": "main", "writefield_size_um": 500},
+                    {"id": "large", "writefield_size_um": 1000}],
+                "layer_roles": {"device_large": "sin", "fields_large": "writefield"},
+                "layer_exposure_groups": {"device": "main", "device_large": "large", "fields_large": "large"}},
+                "layers": {"device": [1, 0], "device_large": None, "fields_large": None,
+                           "electrode": [10, 0], "die": [20, 0]}}
+
+    def test_multi_group_explicit_aliases_resolve_without_changing_fixed_layers(self):
+        spec = self.multi_group_spec()
+        result = resolve_process_defaults(spec)
+        self.assertEqual(result["layers"], {"device": [1, 0], "device_large": [1, 1],
+                                          "fields_large": [30, 1], "electrode": [10, 0], "die": [20, 0]})
+        self.assertIsNone(spec["layers"]["device_large"])
+        single = {"process": {"profile": "sin-user-process", "exposure_groups": [
+                        {"id": "main", "writefield_size_um": 1000}]},
+                  "layers": {"device": None, "electrode": None}}
+        self.assertEqual(resolve_process_defaults(single)["layers"], {"device": [1, 1], "electrode": [10, 0]})
+
+    def test_multi_group_rejects_wrong_fixed_or_exposure_layers(self):
+        for role in load_profile()["fixed_layers"]:
+            with self.subTest(fixed_role=role):
+                spec = self.multi_group_spec()
+                expected = load_profile()["fixed_layers"][role]
+                spec["layers"][role] = [expected[0], 1]
+                with self.assertRaisesRegex(ValueError, "conflicts with exposure profile"):
+                    resolve_process_defaults(spec)
+        for logical, wrong_pair in (("device", [10, 1]), ("device_large", [1, 0]), ("fields_large", [30, 0])):
+            with self.subTest(logical=logical):
+                spec = self.multi_group_spec()
+                spec["layers"][logical] = wrong_pair
+                with self.assertRaisesRegex(ValueError, "conflicts with exposure profile"):
+                    resolve_process_defaults(spec)
+
+    def test_multi_group_requires_unambiguous_exposure_role_and_ownership(self):
+        for missing in ("device", "device_large", "fields_large"):
+            with self.subTest(missing=missing):
+                spec = self.multi_group_spec()
+                del spec["process"]["layer_exposure_groups"][missing]
+                with self.assertRaisesRegex(ValueError, "requires explicit layer_exposure_groups"):
+                    resolve_process_defaults(spec)
+        spec = self.multi_group_spec()
+        spec["process"]["layer_exposure_groups"]["device"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "Unknown exposure group"):
+            resolve_process_defaults(spec)
+        spec = self.multi_group_spec()
+        del spec["process"]["layer_roles"]["device_large"]
+        with self.assertRaisesRegex(ValueError, "requires an existing exposure-layer role"):
+            resolve_process_defaults(spec)
+        spec = self.multi_group_spec()
+        spec["process"]["layer_roles"]["device"] = "electrode"
+        with self.assertRaisesRegex(ValueError, "Cannot redefine canonical layer role"):
+            resolve_process_defaults(spec)
+        spec = self.multi_group_spec()
+        del spec["process"]["layer_roles"]["device_large"]
+        del spec["process"]["layer_exposure_groups"]["device_large"]
+        spec["layers"]["device_large"] = [1, 1]
+        with self.assertRaisesRegex(ValueError, "requires an explicit layer_roles"):
+            resolve_process_defaults(spec)
 
     def test_dimension_labels_preserve_small_scan_differences(self):
         self.assertEqual(dimension_label("Dfi", 900), "Dfi .9um")

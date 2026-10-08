@@ -2,7 +2,7 @@
 name: photonic-gds-layout
 description: Creates, modifies, migrates, and verifies photonic or microdevice GDS layouts through KLayout/klink from user sketches, KLayout selections, structured parameters, component ports, routing constraints, and clean-export requirements. Use for resonators, cavities, waveguides, couplers, Euler routes, arrays, chip facets, and legacy GDS migration. Do not use for fabrication records, simulation-only analysis, or decorative scientific illustrations.
 metadata:
-  version: "1.2"
+  version: "1.3"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -136,7 +136,7 @@ Maintain one unambiguous current delivery entry. Generate a separate working lay
 - `references/legacy-gds-library-map.md` — read when locating or migrating legacy components.
 - `references/sin-process-profile.md` — default user SiN layers, fields, pads, ports and labels; read for this user's SiN work.
 - `references/electrode-resistance.md` — read for electrode design or resistance/heating labels.
-- `scripts/generate_layout.py` — limited reference microring/Euler generator, polygon delivery by default; not a universal array/membrane router or full SiN DRC.
+- `scripts/generate_layout.py` — single-exposure-group reference microring/Euler generator; derives enough curve stations and verifies saved ring and Euler mask boundaries. Dense routes use shared-station polygon fragments; overlong PATH records are refused. Not a universal array/membrane router or full SiN DRC.
 - `scripts/validate_design_spec.py` — reference-generator specification and representable ring tolerance; `load_spec()` resolves the declared user profile. Other device families use their project driver and the reusable helpers.
 - `scripts/process_rules.py` — process default resolver and semantic geometry checks described above.
 - `scripts/geometry_checks.py` — shared-station geometry, coordinate range, connectivity corridors and XOR helpers.

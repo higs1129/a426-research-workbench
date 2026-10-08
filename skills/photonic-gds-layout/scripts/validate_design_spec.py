@@ -69,6 +69,8 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         spec = resolve_process_defaults(spec)
     except ValueError as exc:
         raise SpecError(str(exc)) from exc
+    if len(spec.get("process", {}).get("exposure_groups", [])) > 1:
+        raise SpecError("The reference generator supports one exposure group only; use a group-aware project driver for multiple groups.")
     design = _mapping(spec, "design")
     layers = _mapping(spec, "layers")
     unit = _mapping(spec, "unit_cell")
@@ -133,6 +135,20 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     points_per_90 = euler.get("points_per_90_deg")
     if not isinstance(points_per_90, int) or isinstance(points_per_90, bool) or points_per_90 < 32:
         raise SpecError("waveguide.euler.points_per_90_deg must be an integer >= 32.")
+    half_width = bus_width_um / 2
+    if half_width >= euler_radius_um:
+        raise SpecError("Waveguide half-width must be below the Euler minimum radius to avoid folded offset boundaries.")
+    # For offset r_h(s), |r_h''| <= k*(1+h*k)+h*|k'|.
+    # Equal station three-point distance <= max|r_h''|*ds^2/2.
+    # Both sides use the same centerline s. Reserve DBU rounding plus an
+    # integration/straight-curve-junction margin; read-back remains decisive.
+    half_bend_length = math.pi / 2 * euler_radius_um
+    acceleration_bound = (1 + half_width/euler_radius_um)/euler_radius_um + half_width/(euler_radius_um*half_bend_length)
+    route_budget_um = .8 * budget_nm / 1000
+    max_step_um = math.sqrt(2 * route_budget_um / acceleration_bound)
+    required_samples = math.ceil(2 * half_bend_length / max_step_um)
+    resolved_samples = max(points_per_90, required_samples)
+    resolved_samples += resolved_samples % 2  # Exact curvature-peak station.
 
     for edge_name in ("left_edge", "right_edge"):
         edge = _mapping(waveguide, edge_name)
@@ -182,7 +198,11 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "coupling_gap_um": float(gap_um),
             "coupling_length_um": coupling_length_um,
             "euler_min_radius_um": euler_radius_um,
-            "points_per_90_deg": points_per_90,
+            "requested_points_per_90_deg": points_per_90,
+            "points_per_90_deg": resolved_samples,
+            "route_target_deviation_nm": target_nm,
+            "route_analytic_budget_nm": route_budget_um * 1000,
+            "route_max_centerline_step_um": max_step_um,
         },
         "ports": names,
         "export_layers": allowlist,

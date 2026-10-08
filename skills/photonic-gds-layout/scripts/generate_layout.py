@@ -18,14 +18,18 @@ from geometry_checks import check_dbu_extent, compare_geometry, shared_station_s
 Point = tuple[float, float]
 
 
-def _append_straight(points: list[Point], heading: float, length: float) -> float:
+def _append_straight(points: list[Point], heading: float, length: float, normals=None) -> float:
+    if length == 0:
+        return heading
     x, y = points[-1]
     points.append((x + length * math.cos(heading), y + length * math.sin(heading)))
+    if normals is not None:
+        normals.append((-math.sin(heading), math.cos(heading)))
     return heading
 
 
 def _append_euler(
-    points: list[Point], heading: float, angle_deg: float, min_radius_um: float, samples: int
+    points: list[Point], heading: float, angle_deg: float, min_radius_um: float, samples: int, normals=None
 ) -> float:
     """Append a pure symmetric clothoid bend with triangular curvature."""
     sign = 1.0 if angle_deg >= 0 else -1.0
@@ -46,6 +50,8 @@ def _append_euler(
         y += ds * math.sin(theta + dtheta / 2.0)
         theta += dtheta
         points.append((x, y))
+        if normals is not None:
+            normals.append((-math.sin(theta), math.cos(theta)))
     return heading + math.radians(angle_deg)
 
 
@@ -58,18 +64,19 @@ def build_route(spec: dict[str, Any], report: dict[str, Any]) -> tuple[list[Poin
     right = waveguide["right_edge"]
 
     points: list[Point] = [(0.0, 0.0)]
+    normals = [(0.0, 1.0)]
     heading = 0.0
-    heading = _append_straight(points, heading, float(left["straight_length_um"]))
-    heading = _append_euler(points, heading, 90.0, radius, samples)
-    heading = _append_straight(points, heading, float(left["vertical_drop_um"]))
-    heading = _append_euler(points, heading, -90.0, radius, samples)
+    heading = _append_straight(points, heading, float(left["straight_length_um"]), normals)
+    heading = _append_euler(points, heading, 90.0, radius, samples, normals)
+    heading = _append_straight(points, heading, float(left["vertical_drop_um"]), normals)
+    heading = _append_euler(points, heading, -90.0, radius, samples, normals)
     bus_start = points[-1]
-    heading = _append_straight(points, heading, coupling_length)
+    heading = _append_straight(points, heading, coupling_length, normals)
     bus_end = points[-1]
-    heading = _append_euler(points, heading, -90.0, radius, samples)
-    heading = _append_straight(points, heading, float(right["vertical_drop_um"]))
-    heading = _append_euler(points, heading, 90.0, radius, samples)
-    _append_straight(points, heading, float(right["straight_length_um"]))
+    heading = _append_euler(points, heading, -90.0, radius, samples, normals)
+    heading = _append_straight(points, heading, float(right["vertical_drop_um"]), normals)
+    heading = _append_euler(points, heading, 90.0, radius, samples, normals)
+    _append_straight(points, heading, float(right["straight_length_um"]), normals)
 
     ring = report["ring"]
     bus_y = (
@@ -91,6 +98,7 @@ def build_route(spec: dict[str, Any], report: dict[str, Any]) -> tuple[list[Poin
         "output_port_um": list(translated[-1]),
         "centerline_points": len(translated),
         "end_heading_deg": math.degrees(heading),
+        "_normals": normals,  # Internal geometry; removed before report serialization.
     }
 
 
@@ -122,7 +130,41 @@ def _point_to_line_distance(point: Point, start: Point, end: Point) -> float:
     vx, vy = end[0] - start[0], end[1] - start[1]
     wx, wy = point[0] - start[0], point[1] - start[1]
     denominator = math.hypot(vx, vy)
+    if denominator == 0:
+        return math.inf
     return abs(vx * wy - vy * wx) / denominator
+
+
+def verify_route_boundary(region, dbu_um, validation, route_info):
+    """Verify the merged SAVED mask outline, retaining all smooth junctions.
+
+    Only the four known terminal corners are excluded, after checking their
+    exact saved cap edges. No edge-length or curvature threshold can exempt
+    coarse bends. Merging removes internal fragment caps but not actual gaps.
+    """
+    polygons = list(region.merged().each())
+    result = {"connected": len(polygons) == 1, "no_holes": False,
+              "terminal_caps_match": False, "max_deviation_nm": None,
+              "checked_vertices": 0, "within_bound": False}
+    if len(polygons) != 1 or polygons[0].holes():
+        return result
+    result["no_holes"] = True
+    vertices = [(p.x, p.y) for p in polygons[0].each_point_hull()]
+    # This reference route has horizontal optical terminals by construction.
+    half_width = validation["waveguide"]["width_um"] / 2
+    caps = [frozenset((round(x/dbu_um), round((y+sign*half_width)/dbu_um)) for sign in (-1, 1))
+            for x, y in (route_info["input_port_um"], route_info["output_port_um"])]
+    edges = {frozenset((point, vertices[(i+1) % len(vertices)])) for i, point in enumerate(vertices)}
+    result["terminal_caps_match"] = all(cap in edges for cap in caps)
+    if not result["terminal_caps_match"]:
+        return result
+    corners = set().union(*caps)
+    distances = [_point_to_line_distance(point, vertices[i-1], vertices[(i+1) % len(vertices)]) * dbu_um * 1000
+                 for i, point in enumerate(vertices) if point not in corners]
+    result["checked_vertices"] = len(distances)
+    result["max_deviation_nm"] = max(distances, default=None)
+    result["within_bound"] = bool(distances) and max(distances) < validation["waveguide"]["route_target_deviation_nm"]
+    return result
 
 
 def _readback_paths(gds_path: Path, top_cell: str, device_layer: list[int]) -> tuple[kdb.Layout, list[dict[str, Any]]]:
@@ -133,12 +175,16 @@ def _readback_paths(gds_path: Path, top_cell: str, device_layer: list[int]) -> t
         raise RuntimeError(f"Top cell '{top_cell}' was not found after GDS read-back.")
     layer_index = layout.layer(kdb.LayerInfo(device_layer[0], device_layer[1]))
     paths: list[dict[str, Any]] = []
-    for shape in cell.shapes(layer_index).each():
+    iterator = cell.begin_shapes_rec(layer_index)
+    while not iterator.at_end():
+        shape = iterator.shape()
         if not shape.is_path():
+            iterator.next()
             continue
-        path = shape.path
+        path = shape.path.transformed(iterator.trans())
         points = [(point.x * layout.dbu, point.y * layout.dbu) for point in path.each_point()]
-        paths.append({"points": points, "width_um": path.width * layout.dbu})
+        paths.append({"points": points, "width_um": path.width * layout.dbu, "polygon": path.polygon()})
+        iterator.next()
     return layout, paths
 
 
@@ -169,6 +215,7 @@ def verify_path_readback(
     expected = validation["ring"]
     tolerance_nm = math.sqrt(2) * layout.dbu * 1000.0
     mean_deviation = sum(deviations_nm) / len(deviations_nm)
+    route_boundary = verify_route_boundary(kdb.Region(route_path["polygon"]), layout.dbu, validation, route_info)
     checks = {
         "top_cell_present": True,
         "device_path_count_is_five": len(paths) == 5,
@@ -178,6 +225,7 @@ def verify_path_readback(
         "route_width_matches": abs(route_path["width_um"] - validation["waveguide"]["width_um"]) <= layout.dbu,
         "ring_deviation_within_bound": max(deviations_nm) < expected["target_midpoint_chord_deviation_nm"],
         "route_is_continuous_single_path": len(route_path["points"]) == route_info["centerline_points"],
+        "route_boundary_within_bound": route_boundary["within_bound"],
     }
     return {
         "ok": all(checks.values()),
@@ -196,6 +244,7 @@ def verify_path_readback(
                 "tolerance_used": tolerance_nm,
             },
             "route_centerline_points": len(route_path["points"]),
+            "route_boundary": route_boundary,
         },
     }
 
@@ -210,16 +259,19 @@ def verify_polygon_readback(
         raise RuntimeError(f"Top cell '{validation['top_cell']}' was not found after GDS read-back.")
     device_layer = spec["layers"]["device"]
     layer_index = layout.layer(kdb.LayerInfo(device_layer[0], device_layer[1]))
-    shapes = list(cell.shapes(layer_index).each())
+    ring_cell = layout.cell(validation["top_cell"] + "__ring")
+    route_cell = layout.cell(validation["top_cell"] + "__route")
+    if ring_cell is None or route_cell is None:
+        raise RuntimeError("Missing semantic ring/route cells after read-back")
+    ring_shapes = list(ring_cell.shapes(layer_index).each())
+    route_shapes = list(route_cell.shapes(layer_index).each())
+    shapes = ring_shapes + route_shapes
     polygons = [shape.polygon for shape in shapes if shape.is_polygon()]
     paths = [shape for shape in shapes if shape.is_path()]
-    route_candidates = [
-        polygon
-        for polygon in polygons
-        if polygon.bbox().width() * layout.dbu > 2.0 * validation["ring"]["outer_radius_um"]
-    ]
+    route_region = kdb.Region(route_cell.begin_shapes_rec(layer_index))
+    route_boundary = verify_route_boundary(route_region, layout.dbu, validation, route_info)
     positive_areas = [polygon.area() * layout.dbu**2 for polygon in polygons]
-    ring_polygons = [polygon for polygon in polygons if polygon not in route_candidates]
+    ring_polygons = [shape.polygon for shape in ring_shapes if shape.is_polygon()]
     # Collect saved inner/outer stations independent of vertex start/order.
     # Reject a mean-only check: one malformed chord must fail the upper bound.
     radii = (validation["ring"]["inner_radius_um"], validation["ring"]["outer_radius_um"])
@@ -240,11 +292,13 @@ def verify_polygon_readback(
                                  "allowed_step_um": allowed_step})
     checks = {
         "top_cell_present": True,
-        "device_shape_count_is_five": len(shapes) == 5,
+        "device_shapes_match_fragment_manifest": len(shapes) == route_info["ring_fragments"] + route_info["route_fragments"],
         "device_path_count_is_zero": len(paths) == 0,
-        "device_polygon_count_is_five": len(polygons) == 5,
-        "all_polygon_areas_are_positive": len(positive_areas) == 5 and all(area > 0 for area in positive_areas),
-        "route_is_single_polygon": len(route_candidates) == 1,
+        "all_device_shapes_are_polygons": len(polygons) == len(shapes),
+        "all_polygon_areas_are_positive": bool(positive_areas) and all(area > 0 for area in positive_areas),
+        "route_is_connected_without_holes": route_boundary["connected"] and route_boundary["no_holes"],
+        "route_terminal_caps_match": route_boundary["terminal_caps_match"],
+        "route_boundary_within_bound": route_boundary["within_bound"],
         "ring_boundaries_station_count_matches": all(b["points"] == validation["ring"]["segments"] for b in boundary_reports),
         "ring_boundaries_deviation_within_bound": all(b["max_deviation_nm"] < validation["ring"]["target_midpoint_chord_deviation_nm"] for b in boundary_reports),
         "ring_boundaries_no_long_chords": all(b["max_step_um"] <= b["allowed_step_um"] for b in boundary_reports),
@@ -261,6 +315,7 @@ def verify_polygon_readback(
             "polygon_areas_um2": positive_areas,
             "route_centerline_points_before_expansion": route_info["centerline_points"],
             "ring_boundaries": boundary_reports,
+            "route_boundary": route_boundary,
         },
     }
 def render_preview(ring_points: list[Point], route_points: list[Point], output: Path, validation: dict[str, Any]) -> None:
@@ -301,6 +356,9 @@ def generate(
     spec = load_spec(spec_path)
     validation = validate_spec(spec)
     route_points, route_info = build_route(spec, validation)
+    route_normals = route_info.pop("_normals")
+    if shape_representation == "path" and max(len(route_points), math.ceil(validation["ring"]["segments"] / 4) + 1) > 8190:
+        raise ValueError("Resolved geometry exceeds the single PATH XY record limit; use polygon delivery with shared-station fragments.")
     ring_points = build_ring(validation["ring"]["radius_um"], validation["ring"]["segments"])
 
     all_points = ring_points + route_points
@@ -312,11 +370,15 @@ def generate(
     layout = kdb.Layout()
     layout.dbu = validation["dbu_um"]
     cell = layout.create_cell(validation["top_cell"])
+    ring_cell = layout.create_cell(validation["top_cell"] + "__ring")
+    route_cell = layout.create_cell(validation["top_cell"] + "__route")
+    cell.insert(kdb.CellInstArray(ring_cell.cell_index(), kdb.Trans()))
+    cell.insert(kdb.CellInstArray(route_cell.cell_index(), kdb.Trans()))
     device = spec["layers"]["device"]
     layer_index = layout.layer(kdb.LayerInfo(device[0], device[1]))
     if shape_representation == "path":
         for ring_part in split_closed_path(ring_points):
-            cell.shapes(layer_index).insert(kdb.DPath(
+            ring_cell.shapes(layer_index).insert(kdb.DPath(
                 [kdb.DPoint(x, y) for x, y in ring_part], validation["ring"]["width_um"]))
     else:
         radius = validation["ring"]["radius_um"]
@@ -324,15 +386,17 @@ def generate(
         # Radial caps share exact stations. Separately polygonized PATH parts
         # have different end tangents and can introduce tiny seam wedges.
         fragments = shared_station_strip(ring_points, normals, validation["ring"]["width_um"],
-                                         max_stations=math.ceil(validation["ring"]["segments"] / 4) + 1)
+                                         max_stations=min(2000, math.ceil(validation["ring"]["segments"] / 4) + 1))
         for points in fragments:
-            cell.shapes(layer_index).insert(kdb.DPolygon([kdb.DPoint(*p) for p in points]))
-    route_path = kdb.DPath(
-        [kdb.DPoint(x, y) for x, y in route_points], validation["waveguide"]["width_um"]
-    )
-    cell.shapes(layer_index).insert(
-        route_path if shape_representation == "path" else route_path.polygon()
-    )
+            ring_cell.shapes(layer_index).insert(kdb.DPolygon([kdb.DPoint(*p) for p in points]))
+    if shape_representation == "path":
+        route_cell.shapes(layer_index).insert(kdb.DPath(
+            [kdb.DPoint(x, y) for x, y in route_points], validation["waveguide"]["width_um"]))
+    else:
+        for points in shared_station_strip(route_points, route_normals, validation["waveguide"]["width_um"], max_stations=2000):
+            route_cell.shapes(layer_index).insert(kdb.DPolygon([kdb.DPoint(*p) for p in points]))
+    route_info["ring_fragments"] = ring_cell.shapes(layer_index).size()
+    route_info["route_fragments"] = route_cell.shapes(layer_index).size()
 
     output_gds.parent.mkdir(parents=True, exist_ok=True)
     candidate = output_gds.with_name(output_gds.stem + ".candidate.gds")

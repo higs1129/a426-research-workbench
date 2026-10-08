@@ -39,6 +39,12 @@ def resolve_process_defaults(spec: dict) -> dict:
     Missing process group keeps legacy/synthetic specs usable. The maintained
     intake template selects this profile by default for this user's SiN work.
     Custom/non-SiN profiles must supply their own resolver and rule sources.
+
+    process.layer_roles maps custom logical aliases to known profile roles;
+    device always means sin and existing role names retain their meaning.
+    process.layer_exposure_groups assigns logical exposure layers to group ids.
+    Assignments are mandatory with multiple groups, optional with one group.
+    Fixed-layer roles are checked regardless of the number of exposure groups.
     """
     result = deepcopy(spec)
     process = result.get("process", {})
@@ -71,18 +77,54 @@ def resolve_process_defaults(spec: dict) -> dict:
             tessellation["midpoint_chord_deviation_nm"] = profile["tessellation"]["sin_three_point_distance_upper_nm"]
         elif tessellation["midpoint_chord_deviation_nm"] > profile["tessellation"]["sin_three_point_distance_upper_nm"]:
             raise ValueError("SiN three-point distance must be <0.1 nm; declare a different sourced process for another limit")
+    layers = result.setdefault("layers", {})
+    if not isinstance(layers, dict):
+        raise ValueError("layers must map logical names to layer/datatype pairs")
     if len(groups) == 1:
-        expected = next(iter(resolved.values()))
-        layers = result.setdefault("layers", {})
-        for name in list(layers):
-            role = "sin" if name == "device" else name
-            if role not in expected:
-                continue
-            if layers[name] is None:
-                layers[name] = expected[role]
-            elif list(layers[name]) != expected[role]:
-                raise ValueError(f"{name} layer conflicts with exposure profile; declare a custom profile for an intentional change")
-        layers.setdefault("device", expected["sin"])
+        layers.setdefault("device", None)
+    roles = process.get("layer_roles", {})
+    ownership = process.get("layer_exposure_groups", {})
+    if not isinstance(roles, dict) or not isinstance(ownership, dict):
+        raise ValueError("layer_roles and layer_exposure_groups must be mappings")
+    known_roles = set(profile["fixed_layers"]) | set(profile["exposure_layers"])
+    profile_layer_numbers = {pair[0] for pair in profile["fixed_layers"].values()} | set(profile["exposure_layers"].values())
+    canonical_roles = {role: role for role in known_roles}
+    canonical_roles["device"] = "sin"
+    for name, role in roles.items():
+        if name not in layers or not isinstance(role, str) or role not in known_roles:
+            raise ValueError(f"layer_roles.{name} must name an existing logical layer and known profile role")
+        if name in canonical_roles and canonical_roles[name] != role:
+            raise ValueError(f"Cannot redefine canonical layer role {name} as {role}")
+    for name, group_id in ownership.items():
+        role = roles.get(name, canonical_roles.get(name))
+        if name not in layers or role not in profile["exposure_layers"]:
+            raise ValueError(f"layer_exposure_groups.{name} requires an existing exposure-layer role")
+        if not isinstance(group_id, str) or group_id not in resolved:
+            raise ValueError(f"Unknown exposure group for logical layer {name}: {group_id}")
+    for name, value in layers.items():
+        role = roles.get(name, canonical_roles.get(name))
+        if role is None:
+            # Non-profile helpers remain project-defined; mask aliases must
+            # declare their semantic role to receive process verification.
+            if value is None or (isinstance(value, (list, tuple)) and len(value) == 2
+                                 and value[0] in profile_layer_numbers):
+                raise ValueError(f"Logical mask layer {name} requires an explicit layer_roles entry")
+            continue
+        if role in profile["fixed_layers"]:
+            expected = profile["fixed_layers"][role]
+        else:
+            group_id = ownership.get(name)
+            if group_id is None:
+                if len(groups) != 1:
+                    raise ValueError(f"Logical layer {name} requires explicit layer_exposure_groups ownership with multiple groups")
+                group_id = groups[0]["id"]
+            expected = resolved[group_id][role]
+        if value is None:
+            layers[name] = list(expected)
+        elif (not isinstance(value, (list, tuple)) or len(value) != 2
+              or any(not isinstance(part, int) or isinstance(part, bool) for part in value)
+              or list(value) != list(expected)):
+            raise ValueError(f"{name} layer conflicts with exposure profile; expected {expected} for role {role}")
     return result
 
 

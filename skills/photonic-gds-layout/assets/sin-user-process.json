@@ -1,6 +1,6 @@
 {
   "name": "sin-user-process",
-  "version": "1.0",
+  "version": "1.1",
   "source": "User-approved SiN mask conventions; override per declared process or device specification.",
   "units": "um",
   "exposure_datatypes": {"500": 0, "1000": 1},
@@ -20,19 +20,36 @@
     "device_kind": null, "component_profile": null, "component_source": null,
     "group_local_geometry": null, "group_anchors": null,
     "all_groups_same_height": false,
+    "device_kind_basis": "Optical cavity topology, not the number of independent devices or die repetitions.",
+    "electrical_topology": null,
     "accepted_local_profiles": {
-      "array-ring-heater-stagger150": {
-        "device_kind": "array",
-        "source": "2026-10-nine-chip-array/chip_07/layout-05/README.md and electrodes.py; reuse only for the matching accepted component",
+      "single-ring-heater-stagger150": {
+        "device_kind": "single",
+        "source": "2026-10-nine-chip-array/chip_07/README.md and layout-05/README.md, electrodes.py; reuse only for the matching accepted component",
+        "optical_topology": "Y branch feeds one membrane cavity and one reference cavity on separately exiting arms; electrode pair belongs to the single membrane cavity.",
+        "source_electrical_topology": "Independent two-pad circuit per heated cavity; no shared return in this source.",
+        "group_anchor_policy": "Explicit per-device anchor; preserve local pad pair while allowing groups at different heights.",
         "local_pads": [{"center_um": [0, 0], "size_um": [100, 100]}, {"center_um": [100, 150], "size_um": [100, 100]}]
       },
-      "array-membrane-phase-stagger200": {
-        "device_kind": "array",
+      "single-membrane-phase-stagger200": {
+        "device_kind": "single",
         "source": "2026-10-nine-chip-array/chip_09/big-membrane-die-preview/README.md and build.py; reuse only for the matching accepted component",
+        "optical_topology": "One ring with two coupling points per independent optical device; four devices per die do not form a cavity array.",
+        "source_electrical_topology": "Independent two-pad phase-heater circuit per device; no shared return in this source.",
+        "group_anchor_policy": "Explicit per-device anchor; retain each pair offset without imposing common group height.",
+        "local_pads": [{"center_um": [0, 0], "size_um": [100, 100]}, {"center_um": [100, 200], "size_um": [100, 100]}]
+      },
+      "array-shared-bus-ring-heater-stagger200": {
+        "device_kind": "array",
+        "source": "2026-10-nine-chip-array/chip_02/final, chip_04/final-v3, chip_06/final-v4 and chip_08/final-v2: README.md and electrodes.py; accepted shared-optical-bus array components",
+        "optical_topology": "Sixteen cavities addressed along one routed optical bus per die; reference straight waveguide is separate.",
+        "source_electrical_topology": "Source designs explicitly join return pads with a common metal rail; a new design must declare its actual electrical network separately.",
+        "source_group_organization": "Source signal/return rows at die-local y=3900/4100 um, pad pitch 250 um; these source anchors are not global placement defaults.",
+        "group_anchor_policy": "Explicit per-device anchors and declared probe-row organization; local pair equality does not impose anchor heights or create a common-return rail.",
         "local_pads": [{"center_um": [0, 0], "size_um": [100, 100]}, {"center_um": [100, 200], "size_um": [100, 100]}]
       }
     },
-    "source": "Resolve fixed pad size and intragroup probe spacing from an accepted component. Single-cavity and array profiles are distinct; no common group height is assumed."
+    "source": "Resolve fixed pad size and intragroup probe spacing from an accepted component. Optical topology selects single/array; pair geometry, group anchors and electrical topology remain separate declarations. No common group height or common return is inferred."
   },
   "unresolved_process_values": {
     "minimum_text_stroke_um": null, "structure_text_clearance_um": null,
