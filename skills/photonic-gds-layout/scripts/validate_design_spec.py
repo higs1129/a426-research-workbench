@@ -11,6 +11,9 @@ from typing import Any
 
 import yaml
 
+from geometry_checks import check_dbu_extent
+from process_rules import resolve_process_defaults
+
 
 class SpecError(ValueError):
     """Raised when a design specification is incomplete or inconsistent."""
@@ -21,7 +24,10 @@ def load_spec(path: str | Path) -> dict[str, Any]:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):
         raise SpecError("The YAML root must be a mapping.")
-    return data
+    try:
+        return resolve_process_defaults(data)
+    except ValueError as exc:
+        raise SpecError(str(exc)) from exc
 
 
 def _mapping(parent: dict[str, Any], key: str) -> dict[str, Any]:
@@ -33,23 +39,36 @@ def _mapping(parent: dict[str, Any], key: str) -> dict[str, Any]:
 
 def _positive(parent: dict[str, Any], key: str) -> float:
     value = parent.get(key)
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value <= 0:
         raise SpecError(f"'{key}' must be a positive number.")
     return float(value)
 
 
 def circular_segment_count(radius_um: float, target_deviation_nm: float) -> tuple[int, float]:
-    """Return nearest full-circle segment count and achieved deviation in nm."""
+    """Meet an upper bound on vertex-to-two-neighbour-chord distance.
+
+    This is NOT segment sagitta R*(1-cos(pi/N)). Use ceil, never nearest N.
+    The half-angle form avoids cancellation at small tolerances.
+    """
+    if not math.isfinite(radius_um) or not math.isfinite(target_deviation_nm) or radius_um <= 0:
+        raise SpecError("Circular tessellation inputs must be finite and positive.")
     target_um = target_deviation_nm / 1000.0
     if target_um <= 0 or target_um >= radius_um:
         raise SpecError("Circular tessellation target must be positive and smaller than radius.")
-    delta = math.acos(1.0 - target_um / radius_um)
-    segments = max(8, round(2.0 * math.pi / delta))
-    achieved_nm = radius_um * (1.0 - math.cos(2.0 * math.pi / segments)) * 1000.0
+    delta = 2.0 * math.asin(math.sqrt(target_um / (2.0 * radius_um)))
+    segments = max(8, math.ceil(2.0 * math.pi / delta))
+    achieved_nm = 2 * radius_um * math.sin(math.pi / segments)**2 * 1000.0
+    if achieved_nm > target_deviation_nm:  # Round-off at an exact integer bound.
+        segments += 1
+        achieved_nm = 2 * radius_um * math.sin(math.pi / segments)**2 * 1000.0
     return segments, achieved_nm
 
 
 def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    try:
+        spec = resolve_process_defaults(spec)
+    except ValueError as exc:
+        raise SpecError(str(exc)) from exc
     design = _mapping(spec, "design")
     layers = _mapping(spec, "layers")
     unit = _mapping(spec, "unit_cell")
@@ -68,7 +87,7 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             isinstance(logical_name, str)
             and isinstance(value, list)
             and len(value) == 2
-            and all(isinstance(item, int) and item >= 0 for item in value)
+            and all(isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 65535 for item in value)
         ):
             raise SpecError(f"layers.{logical_name} must be [nonnegative layer, datatype].")
     if "device" not in layers:
@@ -84,16 +103,26 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
 
     tessellation = _mapping(unit, "tessellation")
     target_nm = _positive(tessellation, "midpoint_chord_deviation_nm")
-    segments, achieved_nm = circular_segment_count(radius_um, target_nm)
     if dbu_um * 1000.0 > target_nm / 5.0:
         raise SpecError(
             "design.dbu_um is too coarse for the requested ring deviation; "
             "use a DBU no larger than one fifth of the target."
         )
+    # Protect the worst (outer) boundary and reserve quantization error. A
+    # rounded point moves <= DBU/sqrt(2), so point/chord distance can move by
+    # <= sqrt(2)*DBU. Saved coordinates must still meet the original upper bound.
+    budget_nm = target_nm - math.sqrt(2) * dbu_um * 1000
+    segments, achieved_nm = circular_segment_count(radius_um + ring_width_um / 2, budget_nm)
+    extent = design.get("extent_um")
+    if extent is not None:
+        try:
+            check_dbu_extent(dbu_um, extent)
+        except ValueError as exc:
+            raise SpecError(str(exc)) from exc
 
     bus_width_um = _positive(waveguide, "width_um")
     gap_um = waveguide.get("coupling_gap_um")
-    if not isinstance(gap_um, (int, float)) or isinstance(gap_um, bool) or gap_um < 0:
+    if not isinstance(gap_um, (int, float)) or isinstance(gap_um, bool) or not math.isfinite(gap_um) or gap_um < 0:
         raise SpecError("waveguide.coupling_gap_um must be nonnegative.")
     coupling_length_um = _positive(waveguide, "coupling_length_um")
     if waveguide.get("route_kind") != "euler-edge-transition":
@@ -102,14 +131,14 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     euler = _mapping(waveguide, "euler")
     euler_radius_um = _positive(euler, "min_radius_um")
     points_per_90 = euler.get("points_per_90_deg")
-    if not isinstance(points_per_90, int) or points_per_90 < 32:
+    if not isinstance(points_per_90, int) or isinstance(points_per_90, bool) or points_per_90 < 32:
         raise SpecError("waveguide.euler.points_per_90_deg must be an integer >= 32.")
 
     for edge_name in ("left_edge", "right_edge"):
         edge = _mapping(waveguide, edge_name)
         _positive(edge, "straight_length_um")
         drop = edge.get("vertical_drop_um")
-        if not isinstance(drop, (int, float)) or isinstance(drop, bool) or drop < 0:
+        if not isinstance(drop, (int, float)) or isinstance(drop, bool) or not math.isfinite(drop) or drop < 0:
             raise SpecError(f"waveguide.{edge_name}.vertical_drop_um must be nonnegative.")
 
     ports = spec.get("ports")
@@ -129,6 +158,8 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     unknown_layers = [name for name in allowlist if name not in layers]
     if unknown_layers:
         raise SpecError(f"export.allowlist references unknown layers: {unknown_layers}")
+    if "device" not in allowlist:
+        raise SpecError("The reference generator requires device in export.allowlist.")
 
     return {
         "ok": True,
@@ -143,6 +174,8 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "target_midpoint_chord_deviation_nm": target_nm,
             "segments": segments,
             "achieved_analytic_deviation_nm": achieved_nm,
+            "analytic_metric_boundary": "outer",
+            "quantization_budget_nm": target_nm - budget_nm,
         },
         "waveguide": {
             "width_um": bus_width_um,
@@ -153,6 +186,7 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         },
         "ports": names,
         "export_layers": allowlist,
+        "resolved_process": spec.get("process"),
     }
 
 

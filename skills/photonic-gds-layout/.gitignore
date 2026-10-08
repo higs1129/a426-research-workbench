@@ -3,3 +3,5 @@
 /tests/fixtures/microring-r200-euler*.gds
 /tests/fixtures/microring-r200-euler*.png
 /tests/fixtures/microring-r200-euler*-verification.json
+/tests/.deps/
+/tests/.runs/

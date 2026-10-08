@@ -1,0 +1,55 @@
+{
+  "name": "sin-user-process",
+  "version": "1.0",
+  "source": "User-approved SiN mask conventions; override per declared process or device specification.",
+  "units": "um",
+  "exposure_datatypes": {"500": 0, "1000": 1},
+  "exposure_layers": {"sin": 1, "writefield": 30, "optical_text": 1},
+  "fixed_layers": {
+    "electrode": [10, 0], "electrical_text": [10, 0], "die": [20, 0],
+    "oxide_electrode_opening": [8, 0], "oxide_waveguide": [15, 0],
+    "silicon_deep_etch": [50, 0]
+  },
+  "ports": {
+    "narrow_width_um": 0.4, "narrow_total_length_um": 200,
+    "narrow_inside_length_um": 100, "narrow_outside_length_um": 100,
+    "linear_taper_length_um": 300, "fiber_array_pitch_um": 127,
+    "source": "Current user-approved tapeout defaults; fiber pitch applies only when an array interface is requested."
+  },
+  "pads": {
+    "device_kind": null, "component_profile": null, "component_source": null,
+    "group_local_geometry": null, "group_anchors": null,
+    "all_groups_same_height": false,
+    "accepted_local_profiles": {
+      "array-ring-heater-stagger150": {
+        "device_kind": "array",
+        "source": "2026-10-nine-chip-array/chip_07/layout-05/README.md and electrodes.py; reuse only for the matching accepted component",
+        "local_pads": [{"center_um": [0, 0], "size_um": [100, 100]}, {"center_um": [100, 150], "size_um": [100, 100]}]
+      },
+      "array-membrane-phase-stagger200": {
+        "device_kind": "array",
+        "source": "2026-10-nine-chip-array/chip_09/big-membrane-die-preview/README.md and build.py; reuse only for the matching accepted component",
+        "local_pads": [{"center_um": [0, 0], "size_um": [100, 100]}, {"center_um": [100, 200], "size_um": [100, 100]}]
+      }
+    },
+    "source": "Resolve fixed pad size and intragroup probe spacing from an accepted component. Single-cavity and array profiles are distinct; no common group height is assumed."
+  },
+  "unresolved_process_values": {
+    "minimum_text_stroke_um": null, "structure_text_clearance_um": null,
+    "die_text_clearance_um": null, "membrane_support_clearance_um": null,
+    "near_normal_crossing_tolerance_deg": null
+  },
+  "annotation": {"maximum_short_title_characters": 3, "polygon_text_required": true},
+  "tessellation": {
+    "sin_three_point_distance_upper_nm": 0.1,
+    "sin_comparison": "strictly_less_than",
+    "sin_distribution": "uniform arc-length stations on each smooth curve; circular curves use equal angles",
+    "other_layer_curve_step_um": 1.0,
+    "source": "Design-guide figure: perpendicular distance from middle point C to adjacent A-B line should be around 0.1 nm; user clarification requires <0.1 nm for SiN. Other-layer ~1 um step is user-approved."
+  },
+  "writefield_policy": {
+    "solid_individual_rectangles": true, "deduplicate_exact_fields": true,
+    "merge_adjacent_fields": false, "sin_containment_preference_severity": "warning",
+    "uv_layers_exempt_from_stitching_constraints": true
+  }
+}

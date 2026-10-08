@@ -5,9 +5,24 @@ design:
   dbu_um: 0.001
   source_intent: "Describe the sketch, KLayout selection, or legacy source."
 
+process:
+  profile: "sin-user-process"
+  exposure_groups:
+    - id: "main"
+      writefield_size_um: null  # Resolve 500 or 1000 from the intended exposure.
+  device_kind: null  # single or array; pads use the matching accepted component.
+  width_reference: null  # top/bottom when sidewall geometry matters.
+  gap_reference: null
+  port_overrides: {}
+
 layers:
-  device: [1, 0]
-  annotation: [100, 0]
+  device: null  # Resolved to 1/y by the exposure group, includes optical mask text.
+  writefield: null  # 30/y; actual field placement belongs in the project manifest.
+
+change_scope:
+  editable: []
+  preserved: []
+  recompute: []
 
 unit_cell:
   family: "microring"
@@ -16,7 +31,7 @@ unit_cell:
     radius_um: null
     width_um: null
   tessellation:
-    midpoint_chord_deviation_nm: null
+    midpoint_chord_deviation_nm: 0.1  # Strict saved-geometry upper bound for SiN.
 
 waveguide:
   width_um: null
@@ -49,6 +64,6 @@ verification:
     - "ring_tessellation"
 
 export:
-  working_gds: "working.gds"
+  working_gds: null  # Generate only for a specific editing/debug purpose.
   clean_gds: "final-clean.gds"
   allowlist: ["device"]

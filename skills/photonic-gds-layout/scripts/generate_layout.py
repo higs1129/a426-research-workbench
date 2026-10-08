@@ -12,6 +12,7 @@ from typing import Any
 import klayout.db as kdb
 
 from validate_design_spec import load_spec, validate_spec
+from geometry_checks import check_dbu_extent, compare_geometry, shared_station_strip
 
 
 Point = tuple[float, float]
@@ -166,7 +167,7 @@ def verify_path_readback(
         deviations_nm.append(_point_to_line_distance(point, start, end) * 1000.0)
 
     expected = validation["ring"]
-    tolerance_nm = max(layout.dbu * 1000.0 * 3.0, expected["target_midpoint_chord_deviation_nm"] * 0.2)
+    tolerance_nm = math.sqrt(2) * layout.dbu * 1000.0
     mean_deviation = sum(deviations_nm) / len(deviations_nm)
     checks = {
         "top_cell_present": True,
@@ -175,8 +176,7 @@ def verify_path_readback(
         "ring_segment_count_matches": len(ring_points) == expected["segments"],
         "ring_width_matches": all(abs(width - expected["width_um"]) <= layout.dbu for width in ring_widths),
         "route_width_matches": abs(route_path["width_um"] - validation["waveguide"]["width_um"]) <= layout.dbu,
-        "ring_deviation_near_target": abs(mean_deviation - expected["target_midpoint_chord_deviation_nm"])
-        <= tolerance_nm,
+        "ring_deviation_within_bound": max(deviations_nm) < expected["target_midpoint_chord_deviation_nm"],
         "route_is_continuous_single_path": len(route_path["points"]) == route_info["centerline_points"],
     }
     return {
@@ -219,6 +219,25 @@ def verify_polygon_readback(
         if polygon.bbox().width() * layout.dbu > 2.0 * validation["ring"]["outer_radius_um"]
     ]
     positive_areas = [polygon.area() * layout.dbu**2 for polygon in polygons]
+    ring_polygons = [polygon for polygon in polygons if polygon not in route_candidates]
+    # Collect saved inner/outer stations independent of vertex start/order.
+    # Reject a mean-only check: one malformed chord must fail the upper bound.
+    radii = (validation["ring"]["inner_radius_um"], validation["ring"]["outer_radius_um"])
+    boundary_reports = []
+    radial_tolerance = math.sqrt(2) * layout.dbu
+    for radius in radii:
+        points = {(p.x * layout.dbu, p.y * layout.dbu) for poly in ring_polygons
+                  for p in poly.each_point_hull()
+                  if abs(math.hypot(p.x * layout.dbu, p.y * layout.dbu) - radius) <= radial_tolerance}
+        points = sorted(points, key=lambda p: math.atan2(p[1], p[0]))
+        deviations = [_point_to_line_distance(p, points[i-1], points[(i+1) % len(points)]) * 1000
+                      for i, p in enumerate(points)] if len(points) >= 3 else [math.inf]
+        steps = [math.dist(p, points[i-1]) for i, p in enumerate(points)]
+        allowed_step = 2 * radius * math.sin(math.pi / validation["ring"]["segments"]) + 2 * radial_tolerance
+        boundary_reports.append({"radius_um": radius, "points": len(points),
+                                 "max_deviation_nm": max(deviations),
+                                 "max_step_um": max(steps, default=math.inf),
+                                 "allowed_step_um": allowed_step})
     checks = {
         "top_cell_present": True,
         "device_shape_count_is_five": len(shapes) == 5,
@@ -226,6 +245,9 @@ def verify_polygon_readback(
         "device_polygon_count_is_five": len(polygons) == 5,
         "all_polygon_areas_are_positive": len(positive_areas) == 5 and all(area > 0 for area in positive_areas),
         "route_is_single_polygon": len(route_candidates) == 1,
+        "ring_boundaries_station_count_matches": all(b["points"] == validation["ring"]["segments"] for b in boundary_reports),
+        "ring_boundaries_deviation_within_bound": all(b["max_deviation_nm"] < validation["ring"]["target_midpoint_chord_deviation_nm"] for b in boundary_reports),
+        "ring_boundaries_no_long_chords": all(b["max_step_um"] <= b["allowed_step_um"] for b in boundary_reports),
     }
     return {
         "ok": all(checks.values()),
@@ -238,6 +260,7 @@ def verify_polygon_readback(
             "device_polygon_count": len(polygons),
             "polygon_areas_um2": positive_areas,
             "route_centerline_points_before_expansion": route_info["centerline_points"],
+            "ring_boundaries": boundary_reports,
         },
     }
 def render_preview(ring_points: list[Point], route_points: list[Point], output: Path, validation: dict[str, Any]) -> None:
@@ -247,7 +270,9 @@ def render_preview(ring_points: list[Point], route_points: list[Point], output: 
     fig, ax = plt.subplots(figsize=(12, 7), dpi=180)
     rx, ry = zip(*ring_points)
     wx, wy = zip(*route_points)
-    ax.plot(rx, ry, color="#d97706", linewidth=3.0, label="Microring R=200 µm, W=2 µm")
+    ring = validation["ring"]
+    ax.plot(rx, ry, color="#d97706", linewidth=3.0,
+            label=f"Microring R={ring['radius_um']:g} µm, W={ring['width_um']:g} µm")
     ax.plot(wx, wy, color="#087f8c", linewidth=3.0, label="Straight bus + Euler edge transitions")
     ax.scatter([wx[0], wx[-1]], [wy[0], wy[-1]], color="#1f2937", s=22, zorder=4)
     ax.annotate("opt_in", (wx[0], wy[0]), xytext=(8, 8), textcoords="offset points")
@@ -257,7 +282,7 @@ def render_preview(ring_points: list[Point], route_points: list[Point], output: 
     ax.grid(True, color="#e5e7eb", linewidth=0.6)
     ax.set_xlabel("x (µm)")
     ax.set_ylabel("y (µm)")
-    ax.set_title("Reference photonic layout derived from the daily sketch")
+    ax.set_title("Reference microring and Euler route")
     ax.legend(loc="lower center", ncol=2)
     fig.tight_layout()
     fig.savefig(output, bbox_inches="tight")
@@ -269,7 +294,7 @@ def generate(
     output_gds: Path,
     report_path: Path,
     preview_path: Path | None = None,
-    shape_representation: str = "path",
+    shape_representation: str = "polygon",
 ) -> dict[str, Any]:
     if shape_representation not in {"path", "polygon"}:
         raise ValueError("shape_representation must be 'path' or 'polygon'.")
@@ -278,18 +303,30 @@ def generate(
     route_points, route_info = build_route(spec, validation)
     ring_points = build_ring(validation["ring"]["radius_um"], validation["ring"]["segments"])
 
+    all_points = ring_points + route_points
+    margin = max(validation["ring"]["width_um"], validation["waveguide"]["width_um"]) / 2
+    extent = [min(p[0] for p in all_points) - margin, min(p[1] for p in all_points) - margin,
+              max(p[0] for p in all_points) + margin, max(p[1] for p in all_points) + margin]
+    integer_check = check_dbu_extent(validation["dbu_um"], extent)
+
     layout = kdb.Layout()
     layout.dbu = validation["dbu_um"]
     cell = layout.create_cell(validation["top_cell"])
     device = spec["layers"]["device"]
     layer_index = layout.layer(kdb.LayerInfo(device[0], device[1]))
-    for ring_part in split_closed_path(ring_points):
-        ring_path = kdb.DPath(
-            [kdb.DPoint(x, y) for x, y in ring_part], validation["ring"]["width_um"]
-        )
-        cell.shapes(layer_index).insert(
-            ring_path if shape_representation == "path" else ring_path.polygon()
-        )
+    if shape_representation == "path":
+        for ring_part in split_closed_path(ring_points):
+            cell.shapes(layer_index).insert(kdb.DPath(
+                [kdb.DPoint(x, y) for x, y in ring_part], validation["ring"]["width_um"]))
+    else:
+        radius = validation["ring"]["radius_um"]
+        normals = [(x / radius, y / radius) for x, y in ring_points]
+        # Radial caps share exact stations. Separately polygonized PATH parts
+        # have different end tangents and can introduce tiny seam wedges.
+        fragments = shared_station_strip(ring_points, normals, validation["ring"]["width_um"],
+                                         max_stations=math.ceil(validation["ring"]["segments"] / 4) + 1)
+        for points in fragments:
+            cell.shapes(layer_index).insert(kdb.DPolygon([kdb.DPoint(*p) for p in points]))
     route_path = kdb.DPath(
         [kdb.DPoint(x, y) for x, y in route_points], validation["waveguide"]["width_um"]
     )
@@ -298,11 +335,21 @@ def generate(
     )
 
     output_gds.parent.mkdir(parents=True, exist_ok=True)
-    layout.write(str(output_gds))
+    candidate = output_gds.with_name(output_gds.stem + ".candidate.gds")
+    if candidate.exists():
+        raise FileExistsError(f"Candidate already exists; inspect before retrying: {candidate}")
+    layout.write(str(candidate))
     if shape_representation == "path":
-        readback = verify_path_readback(output_gds, spec, validation, route_info)
+        readback = verify_path_readback(candidate, spec, validation, route_info)
     else:
-        readback = verify_polygon_readback(output_gds, spec, validation, route_info)
+        readback = verify_polygon_readback(candidate, spec, validation, route_info)
+    saved = kdb.Layout()
+    saved.read(str(candidate))
+    equality = compare_geometry(layout, saved, validation["top_cell"], [device])
+    readback["checks"]["saved_geometry_matches_source"] = equality["ok"]
+    readback["ok"] = all(readback["checks"].values())
+    if readback["ok"]:
+        candidate.replace(output_gds)
     report = {
         "ok": readback["ok"],
         "spec": str(spec_path),
@@ -311,6 +358,8 @@ def generate(
         "validation": validation,
         "route": route_info,
         "verification": readback,
+        "integer_range": integer_check,
+        "candidate_if_failed": str(candidate) if not readback["ok"] else None,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -330,7 +379,7 @@ def main() -> int:
     parser.add_argument(
         "--shape-representation",
         choices=("path", "polygon"),
-        default="path",
+        default="polygon",
         help="Keep centerlines as GDS PATH elements or expand them into BOUNDARY/POLYGON elements.",
     )
     args = parser.parse_args()

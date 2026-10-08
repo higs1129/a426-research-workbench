@@ -13,7 +13,7 @@ Each component exposes:
 - named ports;
 - critical dimensions and their verification method.
 
-Parameter values belong to the run specification or project PDK. Do not hide process constants inside the Skill.
+Parameter values belong to the resolved run specification, the explicit user process profile or project PDK. Keep sources visible rather than hiding constants in geometry code.
 
 ## Port fields
 
@@ -35,6 +35,16 @@ For a microring, `radius_um` refers to the centerline unless the specification e
 ## Route convention
 
 Routes consume named ports and preserve width unless a taper is explicit. Euler bends declare their minimum curvature radius and sampling/approximation method. A straight coupling bus remains a geometrically straight segment across the declared coupling span.
+
+Every added segment inherits the preceding endpoint position, direction, width and layer. A ring electrode leaves tangentially; a taper's wide end equals its lead width. At a right-angle joint, fill the intended conductor footprint with overlapping solid coverage and check the full-width corridor for gaps/necking, not just centerline contact. `geometry_checks.check_ports()` verifies metadata; `check_required_corridors()` independently tests the intended joint footprint against actual mask polygons. Define corridors from the required width, not from an already narrowed result.
+
+`R` is the ring centerline radius; `gap` is edge-to-edge distance. Specify top/bottom width and gap conventions for sloped sidewalls. Euler R denotes minimum curvature radius, not bend footprint size. Resolve facet taper/narrow section and optional fiber-array pitch from the user's overridable process profile, then recompute and check the first bend when a segment changes.
+
+## Pad and membrane ownership
+
+Keep pad-group local geometry (pad size, relative centers, probe spacing) separate from each group's anchor/rotation and from device placement. Single-cavity and array components are distinct; single-cavity pad groups commonly have different heights. Moving a group preserves local geometry. Check its actual exported geometry and preserve unrelated groups/layers on edits.
+
+Attach membrane ownership and allowed feature roles to each device. Its sensing structure and explicitly allowed local heater may lie on its own membrane. Unrelated buses and ordinary supply leads avoid it. Pads and probe landings remain in support regions with sourced clearance; do not invent a new numeric keepout.
 
 ## Migration acceptance
 
