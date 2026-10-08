@@ -5,3 +5,4 @@
 - `daily-record-dashboard/`：文本、图片和手绘自由画布。
 - `conference-recorder/`：Android 会议录音、拍照和报告包采集。
 - `network-assistant/`：A426 网络诊断服务与 Android 桌面组件。
+- `array-viewer/`：离线、只读的 NPZ / NPY 桌面查看器，支持数值表格、多维切片与快速预览。
