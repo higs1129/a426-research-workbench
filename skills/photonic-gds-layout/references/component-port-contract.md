@@ -13,6 +13,18 @@ Each component exposes:
 - named ports;
 - critical dimensions and their verification method.
 
+## Shared geometry source
+
+When several mask layers describe one device, the component or resolved design
+object is the source of truth for shared cavity centers, radii, ports, membrane
+boundaries and other cross-layer anchors. Optical, electrode, opening and
+membrane modules consume those definitions and may add layer-specific geometry;
+they do not recover normal-development coordinates by reading an earlier GDS.
+If an external incoming layout or a source-missing migration must be preserved,
+mark the affected layer as external-input or frozen-geometry reuse, record the
+missing source and required input hash, and do not imply that a parameterized
+source was recovered.
+
 Parameter values belong to the resolved run specification, the explicit user process profile or project PDK. Keep sources visible rather than hiding constants in geometry code.
 
 ## Port fields
@@ -49,3 +61,7 @@ Attach membrane ownership and allowed feature roles to each device. Its sensing 
 ## Migration acceptance
 
 A migrated component is accepted only after matching the legacy reference on the parameters that matter for reuse: layer set, critical dimensions, bounding box, port locations/directions, and representative geometry counts or sampled coordinates. Record deliberate differences rather than forcing byte equality when the legacy file lacks semantic structure.
+
+An accepted component is not selected by newest timestamp or edit count. Record
+the explicit accepted/exposed state for each relevant layer and keep candidates
+separate until a user-authorized acceptance update.

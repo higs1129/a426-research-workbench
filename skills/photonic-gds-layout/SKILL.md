@@ -2,7 +2,7 @@
 name: photonic-gds-layout
 description: Creates, modifies, migrates, and verifies photonic or microdevice GDS layouts through KLayout/klink from user sketches, KLayout selections, structured parameters, component ports, routing constraints, and clean-export requirements. Use for resonators, cavities, waveguides, couplers, Euler routes, arrays, chip facets, and legacy GDS migration. Do not use for fabrication records, simulation-only analysis, or decorative scientific illustrations.
 metadata:
-  version: "1.3"
+  version: "1.4"
   skill-author: "Personal Research Workflow"
 ---
 
@@ -84,11 +84,15 @@ Every reusable component must satisfy `references/component-port-contract.md`. V
 
 ### 6. Assemble and route
 
+Keep chip generation and wafer/array assembly as separate responsibilities. A chip driver owns its layers, geometry corrections and source-level exceptions. An assembly driver imports accepted chip cells and applies placement, rotation, mirroring or declared global structures. Do not re-sample, compress, freeze or re-quantize protected optical vertices during ordinary assembly; a chip-specific fix goes back to the chip source.
+
 Place units hierarchically. Connect named ports rather than guessed polygon endpoints. Keep the cavity coupling segment straight when specified; use Euler bends for edge transitions when requested. Preserve explicit minimum radius, width, clearance, and keepout constraints.
 
 Coordinate routes globally and try alternate paths. Prefer complete SiN cavities/bends, coupling regions and tapers within individual EBL fields, testing full-width geometry. Necessary crossings use equal-width straight segments near-normal to the boundary where feasible; record exceptions as warnings, not an automatic rejection of an otherwise usable design. UV layers and membranes may cross fields. A device's own sensing structure/local heater may occupy its own membrane; other buses and ordinary leads avoid that membrane. Pads/probe landing areas stay on support, with the currently sourced clearance.
 
 For electrodes, read `references/electrode-resistance.md`: lower ordinary supply-lead resistance while preserving the intended active heater. Inherit port position/direction/width/layer; leave ring electrodes tangentially, match taper wide ends to leads and verify full-width corner coverage. Keep shared centerline stations on inner/outer boundaries when fragmenting curves.
+
+Build optical, electrode, membrane and opening layers from one shared component/design definition for cavity centers, radii, ports and membrane ownership. Layer-specific modules may add their own geometry, but electrodes consume the shared definitions rather than coordinates reverse-engineered from a previous GDS. External incoming layouts and explicitly declared missing-source migrations are the exceptions; record them as such.
 
 Generate only necessary mask labels on SiN 1/y and metal 10/0, from current parameters/resistance results. Use small, sparse optical text, short titles ≤3 characters, compact dimensions such as `.9um`/`.95um`, and filled glyph polygons away from devices/die boundaries. Respect sourced stroke/clearance rules and keep whole optical strings inside a field where feasible.
 
@@ -109,18 +113,23 @@ Read `references/verification-and-export.md`. At minimum verify:
 - DRC when a rule deck or declared constraints exist;
 - read-back of the saved GDS.
 
-Use `scripts/process_rules.py` on the saved geometry and semantic ownership manifest for layer mapping, individual solid writefields, full-width containment, pad-group invariants and annotation checks. Use `scripts/geometry_checks.py` for integer range, shared-station fragments, port/corridor checks and protected-layer XOR. Distinguish `error`, soft preference `warning`, and unverified process items. Null process values are not approved zero clearances.
+Use `scripts/process_rules.py` on the saved geometry and semantic ownership manifest for layer mapping, individual solid writefields, full-width containment, pad-group invariants and annotation checks. Use `scripts/geometry_checks.py` for integer range, shared-station fragments, port/corridor checks and protected-layer XOR. When a task protects sampled points, run `compare_gds.py --top-cell TOP --layer L/D --preserve-vertices`; XOR alone is only the geometry-equivalence contract. The vertex contract compares counts, physical coordinates and order after complete nested instance transforms, including DBU, magnification, rotation, mirroring and translation, without a coarse comparison grid. Geometry XOR accepts only local ULP-level boolean noise; a real isolated addition, deletion, gap or displacement cannot be hidden by the size of a distant mask. Treat geometry equivalence, vertex preservation and hierarchy/record preservation as separate claims. Metal polygon splitting may pass geometry XOR when the declared contract permits it, but it does not pass vertex preservation automatically. Distinguish `error`, soft preference `warning`, and unverified process items. Null process values are not approved zero clearances.
 
 A rendered image is a visual deliverable, not sufficient geometry evidence. Store machine-readable verification results beside the run.
 
 ### 8. Export and handoff
 
-Maintain one unambiguous current delivery entry. Generate a separate working layout only when it has an actual editing/debug purpose. Use a fail-closed clean export with explicit top cells and layer allowlist, then re-read it. Authorized in-place updates use candidate → read-back checks → replacement, leaving the current delivery intact on failure. Before cleaning historical versions, check whether current drivers still reference them. Deliver the resolved specification, reproducible driver, clean GDS, verification report and concise run note.
+Maintain one unambiguous current delivery entry and manage it by explicit accepted state, not modification time or version count. Candidates do not become accepted automatically. Record accepted/exposed status per layer, retain a valuable baseline when requested, and do not delete historical material without a precise reference check and authorization.
+
+Generate a separate working layout only when it has an actual editing/debug purpose. Use a fail-closed clean export with explicit top cells and layer allowlist, then re-read it. Authorized in-place updates use candidate → read-back checks → replacement, leaving the current delivery intact on failure. Before claiming source reproducibility, classify each layer as parameterized, external-input, or frozen-geometry reuse; list missing source and required inputs with hashes. Extracting a final GDS is evidence of frozen geometry, not recovery of its original source. For a cleanup/reorganization acceptance, run `scripts/verify_rebuild_isolation.py` in a synthetic or copied project with retired inputs unavailable, using an explicit isolation root under the allowed test/output root and an output validator or validator command. The report distinguishes a newly generated file from a contract-verified file; a pre-existing output, no-op command or invalid output cannot pass. Then verify the actual source-generated output and all maintained manifest/README/HTML links. Deliver the resolved specification, reproducible driver, clean GDS, verification report and concise run note.
 
 ## Failure modes
 
 - If the sketch is topologically ambiguous, generate a labeled interpretation preview or state the chosen reversible default; do not silently invent an additional cavity or connection.
 - If a legacy GDS has no semantic ports, treat recovered endpoints as hypotheses until confirmed or matched to source code.
+- If optical, electrode or membrane geometry is being rebuilt independently from copied coordinates, stop and restore a shared component/design definition; use GDS coordinate extraction only for an explicitly declared external or source-missing migration.
+- If a candidate differs only by accepted metal polygon splitting, report geometry equivalence separately from vertex/record preservation; do not demand byte equality without a stated record-level contract.
+- If a retired generator or output is unavailable, classify the rebuild as failed until a declared source-only command actually produces and verifies the output. Do not substitute a newer mixed or accepted file and call it a source rebuild.
 - If KLayout and the klink plugin/client versions disagree, stop live mutation and synchronize them before continuing.
 - If a requested tolerance is finer than the layout DBU, reduce the DBU when coordinate range permits or report that the tolerance is not representable.
 - If DRC/process data is absent, report geometric checks as geometric checks; do not call the layout fabrication-ready.
@@ -141,5 +150,6 @@ Maintain one unambiguous current delivery entry. Generate a separate working lay
 - `scripts/process_rules.py` — process default resolver and semantic geometry checks described above.
 - `scripts/geometry_checks.py` — shared-station geometry, coordinate range, connectivity corridors and XOR helpers.
 - `scripts/electrode_resistance.py` — sourced sheet-resistance formulas and network/heater power accounting.
-- `scripts/compare_gds.py` — structural inventory; add `--top-cell` and repeated `--layer` for selected-layer mask geometry XOR.
+- `scripts/compare_gds.py` — structural inventory plus physical geometry comparison; add `--top-cell`, repeated `--layer`, and `--preserve-vertices` when sampled points are protected.
+- `scripts/verify_rebuild_isolation.py` — runs an explicit source rebuild in a temporary copy below a caller-provided allowed root, omits retired inputs and the expected output, and optionally verifies the newly generated output through a callback or command. It is a copy-based dependency check, not a system-level sandbox for arbitrary absolute-path access.
 - `tests/` — contains synthetic fixtures and representative offline/live checks; never place real research assets here.

@@ -111,27 +111,196 @@ def layer_region(layout, top_name, pair):
     return kdb.Region(cell.begin_shapes_rec(index))
 
 
-def compare_geometry(reference, candidate, top_name, layer_pairs):
-    """Physical geometry XOR, including instance transforms; equal DBU required.
+def _physical_point(layout, transform, point):
+    """Transform an integer-DBU point without an intermediate integer snap."""
+    transformed = transform.to_vtrans().trans(kdb.DPoint(point.x, point.y))
+    return (transformed.x * layout.dbu, transformed.y * layout.dbu)
 
-    PATHs are expanded by Region; TEXT is not mask geometry. Preflight must
-    handle TEXT separately. This check does not assert equal hierarchy.
+
+def _mask_shapes(layout, top_name, pair):
+    """Yield supported mask shapes with their complete recursive transforms."""
+    cell = layout.cell(top_name)
+    if cell is None:
+        raise ValueError(f"missing top cell: {top_name}")
+    index = layout.find_layer(*pair)
+    if index is None:
+        return
+    iterator = cell.begin_shapes_rec(index)
+    while not iterator.at_end():
+        shape = iterator.shape()
+        if shape.is_text():
+            raise ValueError("TEXT has no mask area; polygonize text before comparison")
+        if not (shape.is_polygon() or shape.is_box() or shape.is_path()):
+            raise ValueError("unsupported non-mask shape in protected comparison")
+        yield shape, iterator.trans()
+        iterator.next()
+
+
+def _physical_polygon_rings(layout, shape, transform):
+    polygon = shape.polygon
+    rings = [[_physical_point(layout, transform, point) for point in polygon.each_point_hull()]]
+    for hole in range(polygon.holes()):
+        rings.append([_physical_point(layout, transform, point) for point in polygon.each_point_hole(hole)])
+    return rings
+
+
+def _physical_union(layout, top_name, pair):
+    try:
+        from shapely.geometry import GeometryCollection, Polygon
+        from shapely.ops import unary_union
+    except ImportError as exc:
+        raise RuntimeError("physical DBU-independent comparison requires Shapely") from exc
+    polygons = []
+    for shape, transform in _mask_shapes(layout, top_name, pair):
+        rings = _physical_polygon_rings(layout, shape, transform)
+        if rings[0]:
+            polygons.append(Polygon(rings[0], rings[1:]))
+    return unary_union(polygons) if polygons else GeometryCollection()
+
+
+def _vertex_records(layout, top_name, pair):
+    """Collect transformed vertices while preserving each record's point order."""
+    records = []
+    for shape, transform in _mask_shapes(layout, top_name, pair):
+        if shape.is_path():
+            rings = [[_physical_point(layout, transform, point) for point in shape.path.each_point()]]
+            kind = "path-centerline"
+        else:
+            rings = _physical_polygon_rings(layout, shape, transform)
+            kind = "polygon"
+        records.append({"kind": kind, "rings": rings})
+    return records
+
+
+def _points_close(first, second, tolerance_um):
+    if math.dist(first, second) <= tolerance_um:
+        return True
+    # The default contract is exact in physical coordinates, but decimal DBU
+    # and magnification values are represented by binary floats. Allow only a
+    # few ULPs of that representation noise; this is not a process tolerance.
+    return all(
+        abs(left - right) <= 4 * max(math.ulp(left), math.ulp(right))
+        for left, right in zip(first, second)
+    )
+
+
+def _geometry_parts(geometry):
+    if geometry.is_empty:
+        return
+    if hasattr(geometry, "geoms") and geometry.geom_type != "Polygon":
+        for part in geometry.geoms:
+            yield from _geometry_parts(part)
+    else:
+        yield geometry
+
+
+def _numeric_area_tolerance(geometry):
+    """Bound boolean-area noise independently for each local XOR component.
+
+    A global perimeter bound is unsound: a large distant mask can make a real
+    small island look like floating-point noise. Each component gets only the
+    ULP scale of its own coordinates and its own boundary length.
     """
-    if not math.isclose(reference.dbu, candidate.dbu, rel_tol=0, abs_tol=1e-15):
-        raise ValueError("DBUs differ; explicitly quantize a comparison copy before XOR")
+    total = 0.0
+    components = 0
+    all_within_bound = True
+    for component in _geometry_parts(geometry):
+        if not component.area:
+            continue
+        coordinates = []
+        if hasattr(component, "exterior"):
+            coordinates.extend(component.exterior.coords)
+            coordinates.extend(point for ring in component.interiors for point in ring.coords)
+        elif hasattr(component, "coords"):
+            coordinates.extend(component.coords)
+        if not coordinates:
+            continue
+        ulp = max(max(math.ulp(x) for x in point) for point in coordinates)
+        bound = 32 * ulp * component.length
+        total += bound
+        all_within_bound = all_within_bound and component.area <= bound
+        components += 1
+    return total, components, all_within_bound
+
+
+def _ring_matches(reference, candidate, tolerance_um, cyclic):
+    if len(reference) != len(candidate):
+        return False
+    if not reference:
+        return True
+    starts = range(len(candidate)) if cyclic else (0,)
+    return any(
+        all(_points_close(point, candidate[(index + start) % len(candidate)], tolerance_um)
+            for index, point in enumerate(reference))
+        for start in starts
+    )
+
+
+def _record_matches(reference, candidate, tolerance_um):
+    if reference["kind"] != candidate["kind"] or len(reference["rings"]) != len(candidate["rings"]):
+        return False
+    cyclic = reference["kind"] == "polygon"
+    return all(_ring_matches(left, right, tolerance_um, cyclic)
+               for left, right in zip(reference["rings"], candidate["rings"]))
+
+
+def compare_vertices(reference, candidate, top_name, layer_pairs, tolerance_um=0.0):
+    """Compare physical vertices and order after all instance transforms.
+
+    This is separate from geometry XOR: collinear-point removal can preserve a
+    solid while violating a protected sampling-point contract. Different DBUs
+    are compared in physical micrometres without common-grid rounding. Polygon
+    start vertices may rotate cyclically, but point order and orientation are
+    preserved. Hierarchy and raw record identity are intentionally not asserted.
+    """
+    if not math.isfinite(tolerance_um) or tolerance_um < 0:
+        raise ValueError("vertex tolerance must be finite and nonnegative")
     checks = []
     for pair in layer_pairs:
-        for layout in (reference, candidate):
-            cell = layout.cell(top_name)
-            index = layout.find_layer(*pair)
-            if cell is not None and index is not None:
-                iterator = cell.begin_shapes_rec(index)
-                while not iterator.at_end():
-                    if iterator.shape().is_text():
-                        raise ValueError("TEXT has no mask area; polygonize text before geometry XOR")
-                    iterator.next()
-        xor = layer_region(reference, top_name, pair) ^ layer_region(candidate, top_name, pair)
-        checks.append({"layer": list(pair), "equal": xor.is_empty(), "xor_area_um2": xor.area() * reference.dbu**2})
+        reference_records = _vertex_records(reference, top_name, pair)
+        candidate_records = _vertex_records(candidate, top_name, pair)
+        unmatched = list(candidate_records)
+        matched = 0
+        for record in reference_records:
+            for index, other in enumerate(unmatched):
+                if _record_matches(record, other, tolerance_um):
+                    matched += 1
+                    unmatched.pop(index)
+                    break
+        reference_vertices = sum(len(ring) for record in reference_records for ring in record["rings"])
+        candidate_vertices = sum(len(ring) for record in candidate_records for ring in record["rings"])
+        checks.append({
+            "layer": list(pair),
+            "equal": matched == len(reference_records) and not unmatched,
+            "reference_records": len(reference_records),
+            "candidate_records": len(candidate_records),
+            "reference_vertices": reference_vertices,
+            "candidate_vertices": candidate_vertices,
+        })
+    return {"ok": all(check["equal"] for check in checks), "layers": checks,
+            "tolerance_um": tolerance_um}
+
+
+def compare_geometry(reference, candidate, top_name, layer_pairs):
+    """Physical geometry XOR including nested transforms and differing DBUs.
+
+    Coordinates are converted to floating micrometres through the full complex
+    instance transform, avoiding a coarse common integer grid. This check does
+    not assert hierarchy, vertex retention or text semantics.
+    """
+    checks = []
+    for pair in layer_pairs:
+        reference_geometry = _physical_union(reference, top_name, pair)
+        candidate_geometry = _physical_union(candidate, top_name, pair)
+        xor = reference_geometry.symmetric_difference(candidate_geometry)
+        numeric_tolerance, numeric_components, numeric_noise_only = _numeric_area_tolerance(xor)
+        checks.append({
+            "layer": list(pair),
+            "equal": xor.is_empty or numeric_noise_only,
+            "xor_area_um2": xor.area,
+            "numeric_area_tolerance_um2": numeric_tolerance,
+            "numeric_noise_components": numeric_components,
+        })
     return {"ok": all(check["equal"] for check in checks), "layers": checks}
 
 

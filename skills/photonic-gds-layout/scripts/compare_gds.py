@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import klayout.db as kdb
-from geometry_checks import compare_files
+from geometry_checks import compare_files, compare_vertices
 
 
 def summarize(path: Path) -> dict[str, Any]:
@@ -47,6 +47,8 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--top-cell", help="Shared top-cell name for geometry XOR")
     parser.add_argument("--layer", action="append", default=[], help="Protected layer/datatype for XOR, e.g. 10/0; repeat as needed")
+    parser.add_argument("--preserve-vertices", action="store_true", help="Also require transformed vertex count, coordinates and order to match")
+    parser.add_argument("--vertex-tolerance-um", type=float, default=0.0, help="Declared physical tolerance for vertex comparison")
     args = parser.parse_args()
     try:
         reference = summarize(args.reference)
@@ -63,7 +65,7 @@ def main() -> int:
         "same_layer_inventory": reference["layers"] == candidate["layers"],
     }
     comparison["status"] = "inventory_only_not_geometry_verification"
-    if args.layer or args.top_cell:
+    if args.layer or args.top_cell or args.preserve_vertices:
         if not args.layer or not args.top_cell:
             parser.error("Geometry comparison requires both --top-cell and at least one --layer")
         try:
@@ -71,10 +73,19 @@ def main() -> int:
             if any(len(pair) != 2 for pair in pairs):
                 raise ValueError("use layer/datatype")
             comparison["geometry"] = compare_files(args.reference, args.candidate, args.top_cell, pairs)
+            if args.preserve_vertices:
+                layouts = []
+                for path in (args.reference, args.candidate):
+                    layout = kdb.Layout()
+                    layout.read(str(path))
+                    layouts.append(layout)
+                comparison["vertices"] = compare_vertices(
+                    layouts[0], layouts[1], args.top_cell, pairs, args.vertex_tolerance_um
+                )
         except ValueError as exc:
             parser.error(str(exc))
-        comparison["status"] = "selected_mask_geometry_xor"
-        comparison["ok"] = comparison["geometry"]["ok"]
+        comparison["status"] = "selected_mask_geometry_xor_and_vertex_contract" if args.preserve_vertices else "selected_mask_geometry_xor"
+        comparison["ok"] = comparison["geometry"]["ok"] and (not args.preserve_vertices or comparison["vertices"]["ok"])
     else:
         comparison["ok"] = comparison["same_top_cell_names"] and comparison["same_layer_inventory"]
     payload = json.dumps(comparison, ensure_ascii=False, indent=2)
