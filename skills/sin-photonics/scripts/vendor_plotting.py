@@ -28,7 +28,7 @@ def update(repository,revision):
         files=[dict(path=name,sha256=hashlib.sha256(content).hexdigest()) for name,content in data.items()])
     for name,content in data.items():
         target=ROOT/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(content)
-    (ROOT/'provenance.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    (ROOT/'provenance.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
     return check()
 
 
