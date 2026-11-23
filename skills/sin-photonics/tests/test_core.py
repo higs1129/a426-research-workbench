@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 import numpy as np
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'research/sin-photonics'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts/toolkit'))
 from sinphotonics.geometry import CrossSection,cells,rounded_route
 from sinphotonics.materials import indices
 from sinphotonics.coupling import evolve,quality_factors,quad,window_plan,converged_window,mixed_error

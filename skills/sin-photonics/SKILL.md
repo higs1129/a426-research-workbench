@@ -2,13 +2,13 @@
 name: sin-photonics
 description: Computes SiN ring–straight-bus retained-channel coupling and coherent circular bends/routes using isolated COMSOL modes and built-in reference300-v1 dispersion. Use for geometry changes, neff/ng/FSR, channel Qc, bend transmission or their experimental comparisons. Do not use for GDS editing, arbitrary materials, full-device 3D scattering, roughness inference or general literature summaries.
 metadata:
-  version: "1.1"
+  version: "2.0"
   skill-author: "A426 Research Workbench"
 ---
 
 # SiN photonics
 
-Use the maintained `a426-sin-photonics` program, not historical task scripts. The program has independent `ring-bus` and `bends`/`routes` commands; they share material, modes, sampling, normalization and propagation code. Algorithm source belongs to `research/sin-photonics` in its maintenance repository. Installed Skill files are instructions and a thin launcher only.
+This directory is a self-contained Skill. Run its `scripts/run.py` with the current Python interpreter; it resolves the bundled `scripts/toolkit/` and `scripts/plotting-runtime/` relative to itself. The complete COMSOL model definitions,300 nm dispersion, algorithms, examples and model-guide template are included. No Workbench checkout, other installed Skill or historical field archive is required for a new solve. Python dependencies and a licensed Windows COMSOL installation are external prerequisites.
 
 ## Select the calculation
 
@@ -21,11 +21,11 @@ Only reference300-v1 material is bundled. The nominal process is 300 nm SiN with
 ## Reproducible workflow
 
 1. Read the target project's applicable rules and confirm its output boundary. In a maintenance/testing project, generate only inside permitted ignored test directories. External research assets remain read-only.
-2. Locate an installed `sinphotonics` package or an explicitly supplied toolkit/reference package. Do not resolve missing inputs through an old absolute drive path. If using the thin launcher, provide `--toolkit` or `SIN_PHOTONICS_HOME`.
-3. Read [references/operation.md](references/operation.md). Copy the appropriate example into the current task, edit the structure, and declare bottom/mid/top width **and gap** reference. A reference mode library can only be used when its cross section, wavelength, width, radius and requested branch match. A geometry change normally needs new COMSOL solves.
+2. Resolve this Skill's directory and run `python <skill>/scripts/run.py doctor`. If dependencies are missing, use its `requirements.txt` with the same interpreter. For new solves, verify COMSOL with `doctor --comsol-bin <bin/win64> --require-comsol`; executable discovery alone does not validate a license.
+3. Read [references/operation.md](references/operation.md). Copy an [example configuration](examples/ring-reference.json) into the current task, edit the structure, and declare bottom/mid/top width **and gap** reference. An explicitly supplied mode library is optional and must match the cross section, wavelength, width, radius and requested branch. A geometry change normally needs new COMSOL solves.
 4. For geometry scans, first inspect `ring-bus --plan`; `scan` arrays form a Cartesian product and share deduplicated wavelength±2 nm anchors. Review native/coupling case counts before explicitly raising a budget. Run with an explicit new output directory. For solves, use `--comsol-bin` or `COMSOL_BIN` (or a detected executable). Similar cases share one native sweep MPH per family. The runtime writes numeric NPZ, scalar CSV and exact model/study/dataset/outer/eigenmode identities, including derivative anchors.
 5. Inspect `result.json`, warnings and mode/branch diagnostics before interpreting curves. Read [references/physics-boundaries.md](references/physics-boundaries.md) for normalization, Q definitions and failure interpretation. Keep failed TM points diagnostic. Do not relabel a threshold as an absolute accuracy bound.
-6. Deliver the self-contained, figure-first HTML, CSV, complex NPZ, configuration and model status. Link the portable package's `model-and-equations.html` when the user needs model/formula explanation; see [references/operation.md](references/operation.md) to regenerate it. Use scientific-plotting for report charts; the bundle contains a frozen renderer. Do not add PNG/SVG copies or browser aesthetic checks unless requested.
+6. Deliver the self-contained, figure-first HTML, CSV, complex NPZ, configuration and model status. Generate the Chinese model/formula explanation with `python <skill>/scripts/run.py guide --output <allowed-output>/model-and-equations.html`. Charts use the bundled, hash-verified renderer; they do not require another installed Skill. Do not add PNG/SVG copies or browser aesthetic checks unless requested.
 
 ## Verification and stopping conditions
 
@@ -38,4 +38,4 @@ Only reference300-v1 material is bundled. The nominal process is 300 nm SiN with
 
 ## Completion
 
-Report the actual command, tool version, output location, model state, reference checks and unresolved limitations. Keep original historical code/models frozen. Changes to the reusable algorithm or this Skill are made in the maintenance repository and tested before installation; a production analysis does not authorize editing external records or the installed source.
+Report the actual command, tool version, output location, model state, reference checks and unresolved limitations. `scripts/toolkit/` is the sole maintained algorithm source. Renderer snapshots are generated by `scripts/vendor_plotting.py` from their maintained source and are not edited here. Changes are tested in an isolated copy before installation; a production analysis does not authorize editing external records or the installed source. [README.md](README.md) describes standalone Git installation and maintenance.

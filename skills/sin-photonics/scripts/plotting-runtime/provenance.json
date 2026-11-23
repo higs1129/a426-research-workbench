@@ -1,0 +1,19 @@
+{
+  "source": "a426-research-workbench/skills/scientific-plotting",
+  "source_commit": "00ccc54aa58493de34f304ef0af07faf8e3509e5",
+  "maintenance": "Generated dependency snapshot; update from committed source with scripts/vendor_plotting.py. Do not edit these files.",
+  "files": [
+    {
+      "path": "scripts/render_semantic_svg.py",
+      "sha256": "78357b8f76c55c34b17f1e8b40c22eac3ed81de0910e0df03d7aa2249b935b42"
+    },
+    {
+      "path": "scripts/bundle_editable_figure.py",
+      "sha256": "7b66a5c6bfe3ac38a90d2ae763f52f16081bf3c08e15102e7d699f9b5b800a10"
+    },
+    {
+      "path": "assets/style-profiles.json",
+      "sha256": "d8e2d6df3286aad60e72d64655ef0de0b47ad54184968951289618a1a61fa323"
+    }
+  ]
+}

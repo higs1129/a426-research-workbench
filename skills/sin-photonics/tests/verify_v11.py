@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import numpy as np
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'research/sin-photonics'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts/toolkit'))
 from sinphotonics import modes,coupling
 from sinphotonics.geometry import CrossSection
 from sinphotonics.io import write_json,sha256

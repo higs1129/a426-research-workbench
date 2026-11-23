@@ -16,13 +16,14 @@ from .io import clean
 
 def renderer():
     toolkit=Path(__file__).resolve().parents[1]
-    candidates=[toolkit.parent/'plotting-runtime',toolkit.parent.parent/'skills/scientific-plotting',
-                Path.home()/'.codex/skills/scientific-plotting']
-    if os.environ.get('SIN_PLOTTING_ROOT'):candidates.insert(0,Path(os.environ['SIN_PLOTTING_ROOT']))
-    root=next((p for p in candidates if (p/'scripts/render_semantic_svg.py').is_file()),None)
-    if root is None:raise FileNotFoundError('Scientific renderer missing; use the reference package or set SIN_PLOTTING_ROOT')
+    root=toolkit.parent/'plotting-runtime'
+    if not (root/'scripts/render_semantic_svg.py').is_file():
+        raise FileNotFoundError('Bundled renderer missing; install the complete sin-photonics Skill directory')
     sys.path.insert(0,str(root/'scripts'))
-    return importlib.import_module('render_semantic_svg')
+    module=importlib.import_module('render_semantic_svg')
+    if not Path(module.__file__).resolve().is_relative_to(root.resolve()):
+        raise RuntimeError('A different renderer is already imported; run through this Skill entry point')
+    return module
 
 
 def chart(figure_id,title,xlabel,ylabel,series,provenance,xunit='',yunit='',yscale='linear'):
