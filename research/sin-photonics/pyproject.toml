@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a426-sin-photonics"
+version = "1.0.0"
+description = "Isolated COMSOL modes, retained-channel ring coupling and coherent circular routes"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0", "scipy>=1.14", "jsonschema>=4.20"]
+
+[project.scripts]
+sin-photonics = "sinphotonics.cli:main"
+
+[tool.setuptools.package-data]
+sinphotonics = ["native/*.java", "config.schema.json", "materials.json"]

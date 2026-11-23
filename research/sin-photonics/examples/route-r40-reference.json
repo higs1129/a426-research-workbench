@@ -1,0 +1,183 @@
+{
+  "width_um": 1.2,
+  "wavelengths_nm": [
+    1530,
+    1531,
+    1532,
+    1533,
+    1534,
+    1535,
+    1536,
+    1537,
+    1538,
+    1539,
+    1540,
+    1541,
+    1542,
+    1543,
+    1544,
+    1545,
+    1546,
+    1547,
+    1548,
+    1549,
+    1550,
+    1551,
+    1552,
+    1553,
+    1554,
+    1555,
+    1556,
+    1557,
+    1558,
+    1559,
+    1560,
+    1561,
+    1562,
+    1563,
+    1564,
+    1565,
+    1566,
+    1567,
+    1568,
+    1569,
+    1570
+  ],
+  "anchor_wavelengths_nm": [
+    1530,
+    1540,
+    1550,
+    1560,
+    1570
+  ],
+  "channels": [
+    "TE0",
+    "TM0"
+  ],
+  "segments": [
+    {
+      "kind": "straight",
+      "length_um": 360.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 170.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 3570.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 420.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 3570.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 420.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 3570.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 420.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 3570.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 370.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 3770.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": 1
+    },
+    {
+      "kind": "straight",
+      "length_um": 1620.0
+    },
+    {
+      "kind": "arc",
+      "radius_um": 40,
+      "angle_deg": 90,
+      "sign": -1
+    },
+    {
+      "kind": "straight",
+      "length_um": 10.0
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "ring_radius_um":57.932443,
+  "ring_width_um":2.0,
+  "bus_width_um":2.0,
+  "wavelength_nm":1550,
+  "gaps_um":[0.8],
+  "ring_channel":"TE0",
+  "bus_channels":["TE0","TE1"]
+}

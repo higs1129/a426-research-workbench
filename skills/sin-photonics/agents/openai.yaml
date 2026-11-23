@@ -1,0 +1,4 @@
+interface:
+  display_name: "SiN Photonics"
+  short_description: "COMSOL ring coupling and coherent circular-route analysis"
+  default_prompt: "Use $sin-photonics to calculate my 300 nm SiN ring coupling or circular-route transmission with explicit geometry and quality diagnostics."

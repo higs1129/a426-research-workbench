@@ -1,0 +1,11 @@
+{
+  "cross_section":{"thickness_nm":310,"wall_deg":87,"size_reference":"mid","material":"reference300-v1"},
+  "ring_radius_um":60,
+  "ring_width_um":1.15,
+  "bus_width_um":1.1,
+  "wavelength_nm":1550,
+  "gaps_um":[1.2],
+  "ring_channel":"TE0",
+  "bus_channels":["TE0"],
+  "mesh_scale":0.7
+}
