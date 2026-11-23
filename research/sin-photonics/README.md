@@ -20,6 +20,17 @@ The only material preset is **reference300-v1**. Its complete SiN/SiO₂ Sellmei
 
 Python ≥3.11 with NumPy ≥2, SciPy ≥1.14 and jsonschema ≥4.20. Tested on Python 3.13, NumPy 2.4.6, SciPy 1.18.0 and COMSOL 6.1.0.252 on Windows. COMSOL needs a valid license and the electromagnetic mode solver. The native launcher currently targets Windows executables; other platforms are not verified.
 
+The intended distribution is the Git repository after review. Clone the published repository/revision, then from its root:
+
+```powershell
+python -m pip install -e research/sin-photonics
+python -m sinphotonics ring-bus --config research/sin-photonics/examples/ring-scan-small.json --plan
+python -m sinphotonics ring-bus --config research/sin-photonics/examples/ring-scan-small.json --output <new-output> --comsol-bin <COMSOL-bin-win64>
+python research/sin-photonics/scripts/build_guide.py --output <allowed-output>/model-and-equations.html
+```
+
+The checkout contains the complete300 nm material coefficients, source, examples, Skill and maintained plotting renderer at `skills/scientific-plotting`; no installed Skill or reference archive is required to solve new cases. Record the Git commit with results. Native MPH, raw fields and generated reports are local scientific artifacts and remain outside Git. Archive-building scripts below are optional historical tooling, not a required delivery step. In Workbench use ignored `tests/sin-photonics/local/` outputs.
+
 From this toolkit directory:
 
 ```powershell
@@ -41,7 +52,7 @@ python toolkit/scripts/package_manifest.py verify .
 
 Do not put `--library` on a changed-geometry run unless that exact configuration exists in it. Cross section, material, widths, radii, wavelengths, branches and hashes are checked. Use `examples/ring-modified.json` without `--library` to solve a genuinely different structure. `routes` is an alias for `bends`. A scalar circular bend and a series of signed arcs/straights use the same implementation.
 
-Source-tree report generation discovers an installed scientific-plotting Skill or `SIN_PLOTTING_ROOT`. Portable delivery discovers its sibling `plotting-runtime`. A pip-only installation can set `SIN_PLOTTING_ROOT` to that directory. This dependency is copied only into the ignored distribution, with hashes; its maintained source remains in scientific-plotting. No second plotting source is maintained here.
+Report generation uses explicit `SIN_PLOTTING_ROOT` first, then a sibling `plotting-runtime`, the repository's `skills/scientific-plotting`, or an installed scientific-plotting Skill. Editable installation from the Git checkout therefore uses its maintained renderer directly. A detached pip-only installation can set `SIN_PLOTTING_ROOT` explicitly. Frozen copies belong only to optional ignored reference distributions; no second plotting source is maintained here.
 
 ## Configuration and outputs
 

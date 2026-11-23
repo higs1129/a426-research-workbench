@@ -15,7 +15,9 @@ from .io import clean
 
 
 def renderer():
-    candidates=[Path(__file__).parents[2]/'plotting-runtime',Path.home()/'.codex/skills/scientific-plotting']
+    toolkit=Path(__file__).resolve().parents[1]
+    candidates=[toolkit.parent/'plotting-runtime',toolkit.parent.parent/'skills/scientific-plotting',
+                Path.home()/'.codex/skills/scientific-plotting']
     if os.environ.get('SIN_PLOTTING_ROOT'):candidates.insert(0,Path(os.environ['SIN_PLOTTING_ROOT']))
     root=next((p for p in candidates if (p/'scripts/render_semantic_svg.py').is_file()),None)
     if root is None:raise FileNotFoundError('Scientific renderer missing; use the reference package or set SIN_PLOTTING_ROOT')

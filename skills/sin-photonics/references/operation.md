@@ -1,5 +1,7 @@
 # Program operation
 
+Prefer the reviewed Git checkout for distribution and development. From its repository root, install with `python -m pip install -e research/sin-photonics`; the toolkit discovers the repository's maintained `skills/scientific-plotting` renderer. Run `ring-bus --config research/sin-photonics/examples/ring-scan-small.json --plan` before a native scan. The complete300 nm material coefficients are tracked source; a reference archive is optional. Generate the formula guide with `python research/sin-photonics/scripts/build_guide.py --output <allowed-output>/model-and-equations.html`. Publishing waits for explicit user approval of the reviewed result; local development does not itself publish the repository.
+
 The portable package has `toolkit/`, `modes/`, `models/`, `evidence/`, `plotting-runtime/`, and a checksum manifest. COMSOL is needed for changed geometry, not for replaying the frozen field reference. Python needs NumPy, SciPy and jsonschema. The native solver was exercised with COMSOL 6.1; a COMSOL license and Wave Optics functionality are required.
 
 From a portable package root:
