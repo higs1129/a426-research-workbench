@@ -48,7 +48,7 @@ def verify(skill,out,reference,comsol,forbid):
             SIN_PHOTONICS_HOME='deliberately-unavailable-toolkit',SIN_PLOTTING_ROOT='deliberately-unavailable-renderer',
             PYTHONPATH='deliberately-unavailable-pythonpath')
         print('VERIFY '+label,flush=True)
-        completed=subprocess.run([sys.executable,'-I',str(bootstrap),str(config)],cwd=out,env=env,capture_output=True,text=True,encoding='utf-8')
+        completed=subprocess.run([sys.executable,'-I','-X','utf8',str(bootstrap),str(config)],cwd=out,env=env,capture_output=True,text=True,encoding='utf-8')
         (out/(label+'.log')).write_text(completed.stdout+'\n'+completed.stderr,encoding='utf-8')
         if completed.returncode!=expect:raise AssertionError(f'{label}: {completed.returncode}\n{completed.stderr}\n{completed.stdout}')
         inspected=json.loads(audit.read_text(encoding='utf-8'))

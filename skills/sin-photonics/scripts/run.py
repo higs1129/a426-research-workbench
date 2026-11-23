@@ -48,6 +48,8 @@ def doctor(argv):
 
 
 def main(argv=None):
+    for stream in (sys.stdout,sys.stderr):
+        if hasattr(stream,'reconfigure'):stream.reconfigure(encoding='utf-8')
     argv=list(sys.argv[1:] if argv is None else argv)
     sys.dont_write_bytecode=True
     sys.path.insert(0,str(TOOLKIT))
