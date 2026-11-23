@@ -22,4 +22,6 @@ The launcher contains no algorithm. It prepends the explicitly chosen toolkit to
 
 `config.schema.json` rejects unknown fields. SI units are used internally; configuration names declare nm/µm/degrees. Both widths and edge gaps share `size_reference`. For a trapezoid with height h and wall θ, bottom width = mid width + h cotθ; bottom gap = mid gap − h cotθ. Top conversions use twice that correction. Radius always means ring centerline.
 
+The default eigenvalue search positions follow the frozen width-dependent TE scan. If field inspection identifies a shifted branch, `mode_search` may specify numeric `shifts` by TE0/TE1/TM0 and an `eigenmodes` count. These are solver search hints, not material dispersion inputs. A missing mode terminates the run; it is never replaced by another channel. `bend-two-mode.json` is the native TE0/TE1 conversion example.
+
 The bundled route is the historical 12 × 90° R40, 500 µm row-spacing, cavity-free numerical benchmark. It is not the latest accepted 750 µm row-spacing chip. Use explicit segments for another route; retain sign ±1 and physical straight lengths. Linear radius variation is not an Euler bend and is not an implemented route primitive.

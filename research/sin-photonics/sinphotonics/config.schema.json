@@ -21,6 +21,12 @@
     "bus_channels":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["TE0","TE1","TM0"]}},
     "channels":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["TE0","TE1","TM0"]}},
     "mesh_scale":{"type":"number","minimum":0.3,"maximum":1.5},
+    "mode_search":{"type":"object","additionalProperties":false,"properties":{
+      "eigenmodes":{"type":"integer","minimum":2,"maximum":16},
+      "shifts":{"type":"object","additionalProperties":false,"properties":{
+        "TE0":{"type":"number","minimum":1.4,"maximum":2},
+        "TE1":{"type":"number","minimum":1.4,"maximum":2},
+        "TM0":{"type":"number","minimum":1.4,"maximum":2}}}}},
     "integration":{"type":"object","additionalProperties":false,"properties":{
       "step_um":{"type":"number","exclusiveMinimum":0,"maximum":0.18},
       "extent_um":{"type":"number","minimum":10,"maximum":40},

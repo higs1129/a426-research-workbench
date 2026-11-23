@@ -102,7 +102,7 @@ public class NativeModes {
   m.component("c").mesh("mesh").feature("size").set("custom",true);m.component("c").mesh("mesh").feature("size").set("hmax",".35[um]*mesh_scale");m.component("c").mesh("mesh").feature("size").set("hmin",".008[um]");
   meshsize("nearSize","g_near_dom",".10[um]*mesh_scale",".008[um]");meshsize("coreSize","g_core_dom",".035[um]*mesh_scale",".008[um]");
   m.component("c").mesh("mesh").create("tri","FreeTri");m.component("c").mesh("mesh").feature("tri").selection().named("physical");m.component("c").mesh("mesh").create("mapped","Map");m.component("c").mesh("mesh").feature("mapped").selection().named("pmlDomains");
-  String[] seeds=cfg.getProperty("seeds").split(","),channels=cfg.getProperty("channels").split(",");int count=(int)num("count");
+  String[] seeds=cfg.getProperty("seeds").split("\\|"),channels=cfg.getProperty("channels").split(","),eigenmodes=cfg.getProperty("eigenmodes").split(",");int count=(int)num("count");
   for(int k=0;k<seeds.length;k++){
    String st="st"+k;m.study().create(st);m.study(st).label(channels[k]+" native parameter sweep");
    m.study(st).create("param","Parametric");
@@ -111,7 +111,7 @@ public class NativeModes {
    m.study(st).feature("param").set("punit",new String[]{"um","nm","um"});m.study(st).feature("param").set("sweeptype","filled");
    m.study(st).feature("param").set("keepsol","all");m.study(st).feature("param").set("save","off");m.study(st).feature("param").set("paramselect","off");
    m.study(st).create("mode","ModeAnalysis");m.study(st).feature("mode").set("modeFreq","f0");m.study(st).feature("mode").set("transform","effective_mode_index");
-   m.study(st).feature("mode").set("neigsactive",true);m.study(st).feature("mode").set("neigs",4);
+   m.study(st).feature("mode").set("neigsactive",true);m.study(st).feature("mode").set("neigs",Integer.parseInt(eigenmodes[k]));
    m.study(st).feature("mode").set("shiftactive",true);m.study(st).feature("mode").set("shift","("+seeds[k]+")"+(bend?"*Rb":""));
    m.study(st).setGenPlots(false);System.out.println("NATIVE_SWEEP_START "+id+" study="+st+" cases="+count);m.study(st).run();
    String[] datasets=m.result().dataset().tags();String data=datasets[datasets.length-1];

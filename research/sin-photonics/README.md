@@ -37,6 +37,8 @@ Source-tree report generation discovers an installed scientific-plotting Skill o
 
 Default cross section: 300 nm SiN, 86° wall, 4 µm lower / 3 µm upper SiO₂, a truncated local silicon substrate (n=3.48), upper air and exterior PML. The whole 500 µm substrate is not drawn. Material absorption is zero. Core mesh maximum=35 nm×mesh_scale (default .7). Physical transverse window is x=±8 µm, y=−5.5…4.5 µm; PML outer edges ±10 µm, −7.5…6.5 µm. The integration window is x=±7.8 µm. New geometries still need problem-specific mesh/window/PML convergence checks before quantitative design commitment.
 
+Eigenvalue search uses the frozen run03 width-dependent TE seeds (not material parameters or predicted output indices). A missing branch fails before the next solve family. For an inspected shifted branch, optional `mode_search` accepts `{"eigenmodes":8,"shifts":{"TE1":1.54}}`; this changes the search location, not the result. No automatic branch substitution occurs. `examples/bend-two-mode.json` exercises TE0↔TE1 conversion in a 2 µm route with opposite signed R40 bends.
+
 Each result includes:
 
 - `report.html`: self-contained semantic SVG, structure first, warnings and collapsed numeric table; no duplicate PNG or SVG export.
@@ -63,6 +65,7 @@ Representative checks completed during development:
 | Independent1555 anchor vs interpolation | absolute TE/TM power errors 2.17×10⁻⁸ / −7.22×10⁻⁹ |
 | Changed structure with no library | h310 nm, wall87°, mid widths1.15/1.1 µm, R60, mid gap1.2→bottom1.183754 µm; Qc≈2.41101 M |
 | Fresh single90° R40 solve | TE total≈0.9889920; TM total≈0.7414418 |
+| Fresh 2 µm TE0/TE1 route | Two opposite R40 arcs +170 µm straight: TE0-input retained power≈0.9956963; TE1 coefficient power≈0.00438573 |
 
 Six synthetic tests check material dispersion, variable-thickness area, analytic complex two-mode evolution, zero/channel-Q limits, passive propagation and invalid rounded corners. `tests/sin-photonics/verify_reference.py` at the maintenance repository root checks real-field regressions. Real data, generated models, figures and test results remain ignored under `tests/sin-photonics/local/`.
 

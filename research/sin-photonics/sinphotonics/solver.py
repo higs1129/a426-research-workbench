@@ -50,18 +50,26 @@ def run_java(source,out,properties,bin_dir,cores=3):
     return status
 
 
-def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3):
+def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3,mode_search=None):
     out=Path(out);out.mkdir(parents=True)
     (out/'raw').mkdir();(out/'models').mkdir()
     bend=any(r>0 for r in radii)
     if bend and any(r<=13 for r in radii):
         raise ValueError('Bend radius must exceed 13 µm for this local domain')
-    seeds={'TE0':1.6,'TE1':1.46,'TM0':1.515}
+    # Frozen run03 search heuristics locate branches; these are not material
+    # models and never replace FEM eigenvalues. Explicit numeric overrides help
+    # inspect a shifted branch without editing or rewriting Java source.
+    wide='1.598+0.093*(Wbottom/1[um]-1.22)-0.04*(Wbottom/1[um]-1.22)^2'
+    narrow='1.5394+0.19*(Wbottom/1[um]-0.8)-0.14*(Wbottom/1[um]-0.8)^2'
+    seeds={'TE0':f'if(Wbottom<1[um],{narrow},{wide})',
+           'TE1':'1.444+0.12*(Wbottom/1[um]-1.27)','TM0':'1.515-0.00015*(lambda0/1[nm]-1550)'}
+    search=mode_search or {};seeds.update(search.get('shifts',{}))
+    counts=[search.get('eigenmodes',8 if c=='TE1' else 4) for c in channels]
     properties=dict(root=out.resolve().as_posix(),bend=str(bend).lower(),mesh=mesh,
         thickness_um=cs.thickness_nm/1000,wall_deg=cs.wall_deg,lower_oxide_um=cs.lower_oxide_um,
         upper_oxide_um=cs.upper_oxide_um,widths=' '.join(map(str,widths)),
         wavelengths=' '.join(map(str,wavelengths)),radii=' '.join(map(str,radii)),
-        channels=','.join(channels),seeds=','.join(str(seeds[c]) for c in channels),
+        channels=','.join(channels),seeds='|'.join(str(seeds[c]) for c in channels),eigenmodes=','.join(map(str,counts)),
         count=len(widths)*len(wavelengths)*len(radii),n_core=expression('sin',cs.material),
         n_oxide=expression('oxide'),material=cs.material)
     status=run_java(Path(__file__).with_name('native')/'NativeModes.java',out,properties,bin_dir,cores)
@@ -72,6 +80,13 @@ def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3):
         with np.load(path,allow_pickle=False) as z:
             if not all(np.isfinite(z[k]).all() for k in z.files):
                 raise RuntimeError(f'Nonfinite export {path}')
+    from .modes import catalog,select
+    rows=catalog(out/'raw')
+    for w in widths:
+        for wl in wavelengths:
+            for rad in radii:
+                for channel in channels:
+                    select(rows,w,wl,rad,channel,True)
     write_json(out/'manifest.json',dict(status='solved',comsol='6.1',configuration=properties,
         files=[dict(path=str(p.relative_to(out)),sha256=sha256(p),bytes=p.stat().st_size) for p in [*files,*list((out/'models').glob('*.mph'))]],solver=status))
     return out/'raw'

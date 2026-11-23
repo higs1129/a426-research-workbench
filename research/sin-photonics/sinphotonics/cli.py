@@ -56,8 +56,8 @@ def ring_bus(cfg,cs,out,library,bin_dir,cores):
     if library:
         rc=modes.catalog(library/'ring');bc=modes.catalog(library/'bus')
     else:
-        rc=modes.catalog(solver.solve(out/'ring',cs,[rw],[wl-2,wl,wl+2],[rad],[label],bin_dir,mesh,cores))
-        bc=modes.catalog(solver.solve(out/'bus',cs,[bw],[wl-2,wl,wl+2],[0],labels,bin_dir,mesh,cores))
+        rc=modes.catalog(solver.solve(out/'ring',cs,[rw],[wl-2,wl,wl+2],[rad],[label],bin_dir,mesh,cores,cfg.get('mode_search')))
+        bc=modes.catalog(solver.solve(out/'bus',cs,[bw],[wl-2,wl,wl+2],[0],labels,bin_dir,mesh,cores,cfg.get('mode_search')))
     rr=modes.select(rc,rw,wl,rad,label,True);br=[modes.select(bc,bw,wl,0,x,True) for x in labels]
     for r in [rr,*br]:check_material(r,cs)
     ring=modes.load(rr,cs);buses=[modes.load(r,cs) for r in br]
@@ -103,8 +103,8 @@ def bends(cfg,cs,out,library,bin_dir,cores):
     if library:
         st=modes.catalog(library/'straight');bd=modes.catalog(library/'bend')
     else:
-        st=modes.catalog(solver.solve(out/'straight',cs,[width],anchors,[0],labels,bin_dir,cfg.get('mesh_scale',.7),cores))
-        bd=modes.catalog(solver.solve(out/'bend',cs,[width],anchors,radii,labels,bin_dir,cfg.get('mesh_scale',.7),cores)) if radii else []
+        st=modes.catalog(solver.solve(out/'straight',cs,[width],anchors,[0],labels,bin_dir,cfg.get('mesh_scale',.7),cores,cfg.get('mode_search')))
+        bd=modes.catalog(solver.solve(out/'bend',cs,[width],anchors,radii,labels,bin_dir,cfg.get('mesh_scale',.7),cores,cfg.get('mode_search'))) if radii else []
     keys=[(0.,0)]+[(r,sign) for r in radii for sign in [-1,1]]
     def get_sets(wl):
         sets={}
