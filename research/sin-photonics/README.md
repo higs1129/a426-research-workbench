@@ -1,6 +1,18 @@
 # 300 nm SiN ring coupling and circular routes
 
-The maintained program for isolated COMSOL modes, ring–straight-bus coupling and coherent circular-arc routes. Version **1.0.0**. Algorithm source is here; `skills/sin-photonics` contains the assistant workflow and a thin launcher. Historical task scripts are frozen provenance, never runtime dependencies.
+The maintained program for isolated COMSOL modes, ring–straight-bus coupling and coherent circular-arc routes. Version **1.1.0**. Algorithm source is here; `skills/sin-photonics` contains the assistant workflow and a thin launcher. Historical task scripts are frozen provenance, never runtime dependencies.
+
+The portable distribution contains a standalone Chinese [model and equations guide](../model-and-equations.html) with embedded semantic SVG, material coefficients and formulas mapped to code. In a source checkout, generate it with `python scripts/build_guide.py --output <allowed-output>/model-and-equations.html`; its maintained template is [docs/model-and-equations.html.in](docs/model-and-equations.html.in).
+
+## Version 1.1 changes
+
+- Independent longitudinal convergence expands the half-window and compares both-domain weak complex amplitudes, finite output amplitudes, powers and outer-envelope tails. Default tolerances are 5e−4 relative amplitude, 1e−7 absolute amplitude, 1e−10 absolute power, and 1e−3 relative envelope tail. Two consecutive passes are required. Pre-zero-fill edge-field diagnostics reject unsupported truncation. Two-domain agreement alone cannot qualify a result.
+- Omit `integration.extent_um` for radius-aware initialization: keep30 µm when it leaves enough expansions, otherwise use Lmax/growth^consecutive_passes, with Lmax=min(configured maximum, just below 0.8R). Explicit initial values must leave enough expansions; defaults do not make R40 or smaller supported radii structurally impossible. The complete history/thresholds live under each result's `window`. Self-phase uses a common center-referenced gauge across windows. These checks do not establish mesh/PML convergence or physical model accuracy.
+- `scan` arrays `ring_widths_um`, `bus_widths_um`, `ring_radii_um`, `wavelengths_nm` form a Cartesian product; unspecified axes use scalar values. First run `ring-bus --config examples/ring-scan-small.json --plan`. Default execution budgets are 32 native channel/parameter cases and 128 coupling cases; raise `--max-native-cases` / `--max-coupling-cases` deliberately after reviewing the plan.
+- Native ring/bus families deduplicate widths/radii and the union of λ±2 nm anchors. Gap never triggers FEM. Every case and derivative stencil links to model/study/dataset/outer/eigenmode identities in `native-mode-map.json` and family `native-map.csv`. One absent TE1 becomes a per-case diagnostic/null, without replacing it or stopping other geometries.
+- The new native representative scan has 18 mode cases in two solved MPH files and 16 coupling outputs: ring widths1.2/1.3, bus widths1.1/1.2, R57.932443/60, λ1550, gaps1.1/1.2. `VerifySweep.java` reopens all saved parameter/eigenmode identities; `tests/sin-photonics/verify_v11.py` verifies final-code replay, window limits and missing-channel isolation.
+
+The frozen scalar reference at gap1.2 changes from Qc=3.5392679 M at an insufficient15 µm half-window to approximately3.456625 M after expansion. R40's historical field has an edge ratio≈2.27e−4 and remains sampling-domain diagnostic; reachable expansion is not an automatic pass. A full Chinese explanation and limitations are in the guide.
 
 The only material preset is **reference300-v1**. Its complete SiN/SiO₂ Sellmeier formulas are in `sinphotonics/materials.json`; both Python and COMSOL consume this file. At 1550 nm, nSiN=1.996351530914008 and nSiO₂=1.444266379413012. The supported workflow range is 1530–1570 nm. No user-supplied dispersion table is required. Thickness perturbations retain this same process material, not a different fitted process.
 
@@ -37,7 +49,7 @@ Source-tree report generation discovers an installed scientific-plotting Skill o
 
 Default cross section: 300 nm SiN, 86° wall, 4 µm lower / 3 µm upper SiO₂, a truncated local silicon substrate (n=3.48), upper air and exterior PML. The whole 500 µm substrate is not drawn. Material absorption is zero. Core mesh maximum=35 nm×mesh_scale (default .7). Physical transverse window is x=±8 µm, y=−5.5…4.5 µm; PML outer edges ±10 µm, −7.5…6.5 µm. The integration window is x=±7.8 µm. New geometries still need problem-specific mesh/window/PML convergence checks before quantitative design commitment.
 
-Eigenvalue search uses the frozen run03 width-dependent TE seeds (not material parameters or predicted output indices). A missing branch fails before the next solve family. For an inspected shifted branch, optional `mode_search` accepts `{"eigenmodes":8,"shifts":{"TE1":1.54}}`; this changes the search location, not the result. No automatic branch substitution occurs. `examples/bend-two-mode.json` exercises TE0↔TE1 conversion in a 2 µm route with opposite signed R40 bends.
+Eigenvalue search uses the frozen run03 width-dependent TE seeds (not material parameters or predicted output indices). Missing ring-bus branches are recorded per geometry and partial-basis results stay diagnostic; bends/routes require all requested modes. For an inspected shifted branch, optional `mode_search` accepts `{"eigenmodes":8,"shifts":{"TE1":1.54}}`; this changes the search location, not the result. No automatic branch substitution occurs. `examples/bend-two-mode.json` exercises TE0↔TE1 conversion in a 2 µm route with opposite signed R40 bends.
 
 Each result includes:
 
@@ -52,7 +64,7 @@ Native raw arrays: `info` rows are Re(neff), Im(neff), core fraction, TE fractio
 
 Main design: ring/bus bottom width 1.2 µm, R=57.932443 µm, reference ring index 7, FSR≈420.2105457 GHz, array radius increment≈9.193684 nm. Accepted Chip2 geometry is run04; run02 is the optical baseline and run03 is retired. The coupling historical radius differs only by 0.000000025 µm from the rounded accepted reference.
 
-Representative checks completed during development:
+Earlier v1.0 reference checks (fixed-window historical evidence, supplemented by v1.1 convergence above):
 
 | Check | Actual result |
 |---|---|
@@ -67,7 +79,7 @@ Representative checks completed during development:
 | Fresh single90° R40 solve | TE total≈0.9889920; TM total≈0.7414418 |
 | Fresh 2 µm TE0/TE1 route | Two opposite R40 arcs +170 µm straight: TE0-input retained power≈0.9956963; TE1 coefficient power≈0.00438573 |
 
-Six synthetic tests check material dispersion, variable-thickness area, analytic complex two-mode evolution, zero/channel-Q limits, passive propagation and invalid rounded corners. `tests/sin-photonics/verify_reference.py` at the maintenance repository root checks real-field regressions. Real data, generated models, figures and test results remain ignored under `tests/sin-photonics/local/`.
+Eleven synthetic tests check material dispersion, variable-thickness area, analytic complex evolution, Q limits, passive propagation, invalid corners, small-radius window reachability, finite-support rejection, mixed absolute tolerances, spectral deduplication and native SVG markup in HTML. `tests/sin-photonics/verify_reference.py` checks historical real-field regressions; `verify_v11.py` checks the added convergence/scan behavior. Real data, generated models, figures and test results remain ignored under `tests/sin-photonics/local/`.
 
 The model reference pair is newly solved at1548/1550/1552 nm and loadCopy-readback verified with nonempty solver data. Open it in COMSOL6.1; select the study/parameter/eigenmode in the `Mode field` plot. The compact bend/straight templates have TE0/TM0 studies at1550 nm, cleared solution data and cleared generated mesh, with mesh settings, geometry/material/physics/studies retained. Rebuild mesh and run a study to populate them. They are isolated cross-section models, not a combined 3D coupling solve.
 
@@ -75,7 +87,7 @@ The model reference pair is newly solved at1548/1550/1552 nm and loadCopy-readba
 
 Propagation convention is exp(+iωt−iβs); passive Im(neff)<0. Positive gain is rejected rather than hidden by abs(). Mode identification uses core polarization, confinement, light line and node count. The group-index stencil uses wavelength±2 nm with field-line overlap tracking. Broad degenerate/hybrid regions require additional mode tracking and are rejected when detected.
 
-Ring coupling keeps the complex spatial overlap, finite Hermitian star evolution, per-channel output Kj, Ktot=ΣKj, Trt=2πRng/c, Qc,total=ωTrt/[−ln(1−Ktot)], and Qc,j=Qc,total Ktot/Kj. Zero coupling gives infinity (null in JSON). Retained-channel total Q is not loaded Q. Default diagnostic thresholds are Ktot≤1%, integration-domain amplitude difference≤2%, balance error≤1e−5. They are not absolute physical accuracy guarantees. The independent nonorthogonal domain integrals need not agree exactly. Bus-basis Gram deviation is checked; a general nonorthogonal coupled-mode solver is not implemented. `diagonal_phase` adds fixed-mode self-phase only, not mode reshaping.
+Ring coupling keeps the complex spatial overlap, finite Hermitian star evolution, per-channel output Kj, Ktot=ΣKj, Trt=2πRng/c, Qc,total=ωTrt/[−ln(1−Ktot)], and Qc,j=Qc,total Ktot/Kj. Zero coupling gives infinity (null in JSON). Retained-channel total Q is not loaded Q. Screening requires longitudinal/support checks above plus Ktot≤1%, two-domain amplitude difference≤1e−7+2% of the larger amplitude, and balance error≤1e−5. They are not absolute physical accuracy guarantees. The independent nonorthogonal domain integrals need not agree exactly. Bus-basis Gram deviation is checked; a general nonorthogonal coupled-mode solver is not implemented. `diagonal_phase` adds fixed-mode self-phase only, not mode reshaping.
 
 Route interfaces solve target G⁻¹C, retain complex amplitude and evaluate a†Ga. Coefficient powers |aj|² need not sum to total in a nonorthogonal basis. The broadband path aligns mode phases, uses cubic interpolation of real indices and interface/Gram matrices, log-PCHIP of negative imaginary magnitudes with a declared 10⁻¹⁶ floor, and forbids extrapolation. The output at every wavelength is coherent. It does not resolve the full reflection/radiation continuum or radiation recapture. Unretained power is not an exact radiation-loss calculation. Straight sections and circular arcs are implemented; arbitrary curvature/Euler bends are not.
 

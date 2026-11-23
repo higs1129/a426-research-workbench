@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import time
+import csv
 import numpy as np
 from .materials import expression
 from .io import write_json,sha256
@@ -25,6 +26,7 @@ def locate_bin(explicit=None):
 
 
 def run_java(source,out,properties,bin_dir,cores=3):
+    out=Path(out).resolve();bin_dir=Path(bin_dir).resolve()
     runtime=out/'runtime';runtime.mkdir(parents=True)
     prefs=runtime/'preferences';prefs.mkdir()
     (prefs/'comsol.prefs').write_text('security.external.filepermission=full\n',encoding='utf-8')
@@ -50,7 +52,7 @@ def run_java(source,out,properties,bin_dir,cores=3):
     return status
 
 
-def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3,mode_search=None):
+def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3,mode_search=None,strict_modes=True):
     out=Path(out);out.mkdir(parents=True)
     (out/'raw').mkdir();(out/'models').mkdir()
     bend=any(r>0 for r in radii)
@@ -82,11 +84,23 @@ def solve(out,cs,widths,wavelengths,radii,channels,bin_dir,mesh=.7,cores=3,mode_
                 raise RuntimeError(f'Nonfinite export {path}')
     from .modes import catalog,select
     rows=catalog(out/'raw')
+    native_map=list(csv.DictReader((out/'native-map.csv').open(encoding='utf-8')))
+    selections=[]
     for w in widths:
         for wl in wavelengths:
             for rad in radii:
                 for channel in channels:
-                    select(rows,w,wl,rad,channel,True)
-    write_json(out/'manifest.json',dict(status='solved',comsol='6.1',configuration=properties,
-        files=[dict(path=str(p.relative_to(out)),sha256=sha256(p),bytes=p.stat().st_size) for p in [*files,*list((out/'models').glob('*.mph'))]],solver=status))
+                    record=dict(width_bottom_um=w,wavelength_nm=wl,radius_um=rad,channel=channel)
+                    try:
+                        row=select(rows,w,wl,rad,channel,True)
+                        identity=next(x for x in native_map if x['npz']==Path(row['source']).name and int(x['eigenmode'])==row['solution']+1)
+                        record.update(status='retained',source=Path(row['source']).name,solution=row['solution'],native=identity)
+                    except ValueError as error:
+                        record.update(status='not_retained',reason=str(error))
+                    selections.append(record)
+    missing=[s for s in selections if s['status']!='retained']
+    write_json(out/'manifest.json',dict(status='solved_with_unretained_modes' if missing else 'solved',comsol='6.1',configuration=properties,
+        selections=selections,
+        files=[dict(path=str(p.relative_to(out)),sha256=sha256(p),bytes=p.stat().st_size) for p in [*files,out/'native-map.csv',*list((out/'models').glob('*.mph'))]],solver=status))
+    if strict_modes and missing:raise ValueError(missing[0]['reason'])
     return out/'raw'

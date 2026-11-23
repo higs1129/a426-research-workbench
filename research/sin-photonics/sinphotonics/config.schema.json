@@ -1,40 +1,343 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object", "additionalProperties": false,
+  "type": "object",
+  "additionalProperties": false,
   "properties": {
-    "cross_section": {"type":"object", "additionalProperties":false, "properties":{
-      "thickness_nm":{"type":"number","minimum":200,"maximum":400},
-      "wall_deg":{"type":"number","minimum":75,"maximum":90},
-      "size_reference":{"enum":["bottom","mid","top"]},
-      "lower_oxide_um":{"type":"number","minimum":2,"maximum":4.5},
-      "upper_oxide_um":{"type":"number","minimum":2,"maximum":3.5},
-      "material":{"enum":["reference300-v1"]}}},
-    "ring_radius_um":{"type":"number","exclusiveMinimum":30},
-    "ring_width_um":{"type":"number","minimum":0.5,"maximum":2.5},
-    "bus_width_um":{"type":"number","minimum":0.5,"maximum":2.5},
-    "width_um":{"type":"number","minimum":0.5,"maximum":2.5},
-    "wavelength_nm":{"type":"number","minimum":1532,"maximum":1568},
-    "wavelengths_nm":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"number","minimum":1530,"maximum":1570}},
-    "anchor_wavelengths_nm":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"number","minimum":1530,"maximum":1570}},
-    "gaps_um":{"type":"array","minItems":1,"items":{"type":"number","exclusiveMinimum":0}},
-    "ring_channel":{"enum":["TE0","TM0"]},
-    "bus_channels":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["TE0","TE1","TM0"]}},
-    "channels":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["TE0","TE1","TM0"]}},
-    "mesh_scale":{"type":"number","minimum":0.3,"maximum":1.5},
-    "mode_search":{"type":"object","additionalProperties":false,"properties":{
-      "eigenmodes":{"type":"integer","minimum":2,"maximum":16},
-      "shifts":{"type":"object","additionalProperties":false,"properties":{
-        "TE0":{"type":"number","minimum":1.4,"maximum":2},
-        "TE1":{"type":"number","minimum":1.4,"maximum":2},
-        "TM0":{"type":"number","minimum":1.4,"maximum":2}}}}},
-    "integration":{"type":"object","additionalProperties":false,"properties":{
-      "step_um":{"type":"number","exclusiveMinimum":0,"maximum":0.18},
-      "extent_um":{"type":"number","minimum":10,"maximum":40},
-      "nu":{"type":"integer","minimum":12},"nv":{"type":"integer","minimum":8},
-      "diagonal_phase":{"type":"boolean"}}},
-    "segments":{"type":"array","minItems":1,"items":{"oneOf":[
-      {"type":"object","additionalProperties":false,"required":["kind","length_um"],"properties":{"kind":{"const":"straight"},"length_um":{"type":"number","minimum":0}}},
-      {"type":"object","additionalProperties":false,"required":["kind","radius_um","angle_deg","sign"],"properties":{"kind":{"const":"arc"},"radius_um":{"type":"number","exclusiveMinimum":13},"angle_deg":{"type":"number","exclusiveMinimum":0,"maximum":180},"sign":{"enum":[-1,1]}}}
-    ]}}
+    "cross_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "thickness_nm": {
+          "type": "number",
+          "minimum": 200,
+          "maximum": 400
+        },
+        "wall_deg": {
+          "type": "number",
+          "minimum": 75,
+          "maximum": 90
+        },
+        "size_reference": {
+          "enum": [
+            "bottom",
+            "mid",
+            "top"
+          ]
+        },
+        "lower_oxide_um": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 4.5
+        },
+        "upper_oxide_um": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 3.5
+        },
+        "material": {
+          "enum": [
+            "reference300-v1"
+          ]
+        }
+      }
+    },
+    "ring_radius_um": {
+      "type": "number",
+      "exclusiveMinimum": 30
+    },
+    "ring_width_um": {
+      "type": "number",
+      "minimum": 0.5,
+      "maximum": 2.5
+    },
+    "bus_width_um": {
+      "type": "number",
+      "minimum": 0.5,
+      "maximum": 2.5
+    },
+    "width_um": {
+      "type": "number",
+      "minimum": 0.5,
+      "maximum": 2.5
+    },
+    "wavelength_nm": {
+      "type": "number",
+      "minimum": 1532,
+      "maximum": 1568
+    },
+    "wavelengths_nm": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "number",
+        "minimum": 1530,
+        "maximum": 1570
+      }
+    },
+    "anchor_wavelengths_nm": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "number",
+        "minimum": 1530,
+        "maximum": 1570
+      }
+    },
+    "gaps_um": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "ring_channel": {
+      "enum": [
+        "TE0",
+        "TM0"
+      ]
+    },
+    "bus_channels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "TE0",
+          "TE1",
+          "TM0"
+        ]
+      }
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "TE0",
+          "TE1",
+          "TM0"
+        ]
+      }
+    },
+    "mesh_scale": {
+      "type": "number",
+      "minimum": 0.3,
+      "maximum": 1.5
+    },
+    "mode_search": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "eigenmodes": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 16
+        },
+        "shifts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "TE0": {
+              "type": "number",
+              "minimum": 1.4,
+              "maximum": 2
+            },
+            "TE1": {
+              "type": "number",
+              "minimum": 1.4,
+              "maximum": 2
+            },
+            "TM0": {
+              "type": "number",
+              "minimum": 1.4,
+              "maximum": 2
+            }
+          }
+        }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "step_um": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.18
+        },
+        "extent_um": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 200
+        },
+        "nu": {
+          "type": "integer",
+          "minimum": 12
+        },
+        "nv": {
+          "type": "integer",
+          "minimum": 8
+        },
+        "diagonal_phase": {
+          "type": "boolean"
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_extent_um": {
+              "type": "number",
+              "minimum": 10,
+              "maximum": 200
+            },
+            "growth": {
+              "type": "number",
+              "minimum": 1.1,
+              "maximum": 2
+            },
+            "relative_tolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.01
+            },
+            "amplitude_absolute_tolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.0001
+            },
+            "power_absolute_tolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1e-06
+            },
+            "tail_relative_tolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.01
+            },
+            "boundary_field_tolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.001
+            },
+            "consecutive_passes": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 4
+            },
+            "max_comparisons": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          }
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "length_um"
+            ],
+            "properties": {
+              "kind": {
+                "const": "straight"
+              },
+              "length_um": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "radius_um",
+              "angle_deg",
+              "sign"
+            ],
+            "properties": {
+              "kind": {
+                "const": "arc"
+              },
+              "radius_um": {
+                "type": "number",
+                "exclusiveMinimum": 13
+              },
+              "angle_deg": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 180
+              },
+              "sign": {
+                "enum": [
+                  -1,
+                  1
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "ring_widths_um": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.5
+          }
+        },
+        "bus_widths_um": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.5
+          }
+        },
+        "ring_radii_um": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 30
+          }
+        },
+        "wavelengths_nm": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number",
+            "minimum": 1532,
+            "maximum": 1568
+          }
+        }
+      }
+    }
   }
 }

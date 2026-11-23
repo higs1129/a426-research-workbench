@@ -1,0 +1,113 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>300 nm SiN：模型、结构与公式说明</title>
+<style>body{max-width:1060px;margin:32px auto;padding:0 24px;font:18px Calibri,"Microsoft YaHei",sans-serif;line-height:1.65;color:#111}h1,h2,h3{line-height:1.3}h2{margin-top:48px;border-bottom:2px solid #244a69;padding-bottom:8px}svg{max-width:100%;height:auto;display:block;margin:20px auto}.eq{padding:14px 18px;border-left:4px solid #347194;background:#f1f6f9;margin:18px 0;overflow:auto;font-size:20px}.map{font-size:15px;background:#f5f5f5;padding:12px}.warn{border:1px solid #b77c32;padding:16px;background:#fff8ed}table{border-collapse:collapse;width:100%;font-size:16px}th,td{border:1px solid #bbb;padding:8px;text-align:left}code{font-size:15px;overflow-wrap:anywhere}nav a{margin-right:18px}small{font-size:15px}a{color:#125c8d}pre{white-space:pre-wrap;background:#f5f5f5;padding:16px}</style></head><body>
+<h1>300 nm SiN：模型、结构与公式说明</h1>
+<p>工具 {{version}} · reference300-v1 · 本文是可独立离线阅读的计算说明。公式按当前代码逐项展开，明确哪些是 Maxwell 模式求解，哪些是有限模近似，哪些只是数值诊断。它不构成对所有几何的物理验证。</p>
+<nav><a href="#geometry">结构</a><a href="#eigen">模式与色散</a><a href="#normalization">归一化</a><a href="#coupling">耦合核</a><a href="#q">Qc</a><a href="#diagonal">自相位</a><a href="#route">转弯</a><a href="#diagnostics">诊断</a><a href="#execution">执行映射</a></nav>
+
+<h2 id="geometry">1. 实际结构与两个独立求解截面</h2>
+{{plan_svg}}
+<p>实际耦合区是圆环与一条外侧直总线并置。R 是环中心线半径；w<sub>r,b</sub>、w<sub>b,b</sub> 是环和总线的底宽，g<sub>b</sub> 是两芯最近位置的底部边缘间隙。总线中心线与圆心的距离为：</p>
+<div class="eq" id="eq-geometry">R<sub>b</sub> = R + (w<sub>r,b</sub> + w<sub>b,b</sub>)/2 + g<sub>b</sub>　[长度]</div>
+<p>参考结构：R=57.932443 µm，环/总线底宽均为1.2 µm，h=300 nm，θ=86°；gap 由配置输入，例如1.2 µm。程序分别求一个直波导截面和一个轴对称弯波导截面，再把独立模场映射到局部耦合区积分。<strong>两个截面的集合不是并置两芯的联合超模模型，也不是完整三维器件场解。</strong></p>
+{{section_svg}}
+<div class="eq" id="eq-width">w<sub>mid</sub> = w<sub>bottom</sub> − h cotθ；　w<sub>top</sub> = w<sub>bottom</sub> − 2h cotθ<br>g<sub>mid</sub> = g<sub>bottom</sub> + h cotθ；　g<sub>top</sub> = g<sub>bottom</sub> + 2h cotθ</div>
+<p>这里 θ 相对水平底面定义；两边侧壁均向内收。<code>size_reference</code> 对宽度和gap采用同一 bottom/mid/top 基准，R不随宽度基准改变。芯层竖坐标 v∈[−h/2,h/2]，局部半宽 a(v)=w<sub>bottom</sub>/2−(v+h/2)cotθ。积分用 u=a(v)ξ、ξ∈[−1,1]，雅可比 a(v)；不能只改 COMSOL 厚度而保留旧积分权重。</p>
+<p>下SiO₂为4 µm，上SiO₂为3 µm；外部空气和截取的局部硅衬底之外设置PML。没有绘制500 µm完整硅衬底。物理域约横向±8 µm、竖向−5.5…4.5 µm，PML外界±10 µm、−7.5…6.5 µm。实际有限元几何由参数构建；图中为解释而压缩层厚和放大芯层，不按器件比例。</p>
+<p class="map">对应：<code>geometry.CrossSection.bottom_width / bottom_gap / grid</code>、<code>coupling.quad</code>、<code>native/NativeModes.java main / rect / mat</code>。输入：nm、µm、deg配置；输出：SI坐标、积分面积权重m²及参数化截面。</p>
+
+<h2 id="eigen">2. 固定频率模式、复有效折射率与群延迟</h2>
+<p>本工具只内置300 nm工艺基准材料，Python与COMSOL共用同一份<code>materials.json</code>。下表由该文件直接生成，λ以µm代入；C以µm²计，B无量纲。硅衬底n=3.48，材料吸收k=0。工作流范围1530–1570 nm，环的±2 nm差分因此要求目标λ在1532–1568 nm。</p>
+<div class="eq" id="eq-material">n(λ) = √[1 + Σᵢ Bᵢ λ²/(λ²−Cᵢ)]</div>
+{{material_table}}
+<p>设时间因子为 exp(+iωt)，前向传播因子为 exp(−iβs)。在给定真空波长λ、ω=2πc/λ后，COMSOL 求横截面复矢量电场 E，以及传播特征值；H由同一电磁解获得。对于各向同性非磁材料，对应无源频域方程为：</p>
+<div class="eq" id="eq-maxwell">∇×E = −iωµH，　∇×H = +iωεE<br>∇×(µ<sub>r</sub><sup>−1</sup>∇×E) − k<sub>0</sub><sup>2</sup>ε<sub>r</sub>E = 0，　k<sub>0</sub>=2π/λ　[m⁻¹]</div>
+<p>直截面把沿传播方向的导数替换为 −iβ，n<sub>eff</sub>=β/k<sub>0</sub>。弯截面使用圆柱坐标(ρ,v,φ)，角向依赖为exp(−iqφ)，q无量纲；在参考中心线s=Rφ处，β<sub>R</sub>=q/R，因此 n<sub>eff,R</sub>=q/(k<sub>0</sub>R)。代码对轴对称COMSOL模式输出读取 <code>ewfd.neff/Rb</code>；耦合代码中的 <code>q=k0*Re(neff)*R</code> 才是这里的角向相位常数，不把内部变量名直接当成物理q。</p>
+<div class="eq" id="eq-loss">n<sub>eff</sub>=n′+in″；　exp(−ik<sub>0</sub>n<sub>eff</sub>L)=exp(−ik<sub>0</sub>n′L)exp(k<sub>0</sub>n″L)<br>P(L)/P(0)=exp(2k<sub>0</sub>n″L)=exp(−α<sub>P</sub>L)，　α<sub>P</sub>=−2k<sub>0</sub>n″　[m⁻¹]</div>
+<p>该符号下被动泄漏应有 n″≤0。程序拒绝正虚部，不能用abs把增益变成损耗。材料虚部设零，n″仍可因几何泄漏/PML开放边界而非零。</p>
+<div class="eq" id="eq-group">n<sub>g</sub> = c dRe(β)/dω = n′ − λ dn′/dλ<br>T<sub>rt</sub> = 2πRn<sub>g</sub>/c，　FSR ≈ 1/T<sub>rt</sub> = c/(2πRn<sub>g</sub>)</div>
+<p>程序在目标λ左右各2 nm的同一模式分支做中心差分。λ与差分步长都以nm计算时单位相消。相邻归一化截线场重叠和neff连续性用于防止跳支，不保证任意简并/混合区都可自动追踪。参考1550 nm的环ng≈1.959982，FSR≈420.21054 GHz。这里的FSR是局部分支线性化，不是宽谱内所有共振都严格等间距。</p>
+<div class="eq" id="eq-qgeometry">v<sub>g</sub>≈c/n<sub>g</sub>，　τ<sub>E</sub>≈1/(α<sub>P</sub>v<sub>g</sub>)<br>Q<sub>geometry</sub>≈ωτ<sub>E</sub>=n<sub>g</sub>/(−2 Im(n<sub>eff</sub>))</div>
+<p>最后一步使用单分支、可解释群速度和指数能量衰减近似。它描述理想截面的几何泄漏；无粗糙、无材料吸收，不能等同实测Q0。极小虚部还受网格/PML及数值分辨率影响。对强泄漏/非正交模，普通群速度与功率归一化的物理解释需要进一步审查。</p>
+<p class="map">对应：<code>NativeModes.java</code>的ModeAnalysis和EvalGlobal；<code>modes.catalog / select / dispersion</code>。输入：材料色散、截面、λ、R；输出：复neff、ng、FSR/GHz、几何Q和分支诊断。</p>
+
+<h2 id="normalization">3. 功率归一化、方向与相位规范</h2>
+<div class="eq" id="eq-power">P = ½ Re ∫<sub>A</sub> (E×H*)·ŝ dA<br>在程序局部(x,y,s)坐标中：P = ½ Re ∫ (E<sub>x</sub>H<sub>y</sub>* − E<sub>y</sub>H<sub>x</sub>*) dA</div>
+<p>COMSOL特征场的整体幅度/相位任意。程序先依据直/弯场方向约定转换分量，获得正向功率，再除以√P，使每个保留基模单位功率。归一化后E的单位可写V/(m√W)，H为A/(m√W)。正功率不是用abs“修正”传播衰减；传播被动性另外检查Im(neff)。耦合与界面模块沿用不同的圆柱场方向转换，两种数组不能随意互换。</p>
+<p>TE用水平/径向电场主分量，TM用竖直分量；主分量峰值相位固定初始规范。宽谱路线进一步用模态功率重叠对齐各波长相位。完整场是在有限窗内插值采样，而不是有限元原始节点；PML外未导出的场并未被归一化积分完整收集。</p>
+<p class="map">对应：<code>modes.load / Mode.sampler / overlap</code>、<code>routes.basis</code>。输入：NPZ复E/H及x/y/权重；输出：单位功率模场、局部双线性采样器及相位一致的基底。</p>
+
+<h2 id="coupling">4. 局部矢量重叠与两种积分域</h2>
+{{kernel_svg}}
+<p>以下都在程序采用的局部方向约定下。x指从圆心指向总线，z沿直总线，v为竖直方向。D<sub>b</sub>和D<sub>r</sub>分别是总线芯和环芯的梯形截面。Δn²=n<sub>SiN</sub>²−n<sub>SiO₂</sub>²，ε的扰动量为ε<sub>0</sub>Δn²。它只表示另一芯相对SiO₂的局部介电常数扰动，不是全联合器件本征问题的求解。</p>
+<table><tr><th>符号</th><th>定义及单位</th><th>代码名称</th></tr>
+<tr><td>κ<sub>j</sub>(s)</td><td>含沿程相位的局部耦合核，m⁻¹；下标j是总线通道</td><td>gb / kernel_per_m</td></tr>
+<tr><td>C<sub>j</sub><sup>weak</sup></td><td>一阶弱交换的无量纲复振幅</td><td>−i×amps；amps本身保存∫κ ds</td></tr>
+<tr><td>a<sub>r</sub>, a<sub>j</sub></td><td>有限多通道演化的无量纲复振幅</td><td>state / output_amplitude</td></tr>
+<tr><td>K<sub>j</sub></td><td>有限演化输出系数的模平方，无量纲功率比例</td><td>powers / K_TE0 / K_TE1</td></tr></table>
+<div class="eq" id="eq-mapbus">ρ = √[(R<sub>b</sub>+u<sub>b</sub>)²+s²]，　φ=atan2(s,R<sub>b</sub>+u<sub>b</sub>)<br>T<sub>φ</sub>E = (E<sub>u</sub>cosφ−E<sub>s</sub>sinφ，E<sub>v</sub>，E<sub>u</sub>sinφ+E<sub>s</sub>cosφ)</div>
+<div class="eq" id="eq-kappabus">κ<sub>j</sub><sup>(b)</sup>(s) = (ωε<sub>0</sub>Δn²/4) ∫<sub>D_b</sub> E<sub>b,j</sub>*(u<sub>b</sub>,v) · T<sub>φ</sub>E<sub>r</sub>(ρ−R,v)<br>　× exp[i(β<sub>b,j</sub>s−q<sub>r</sub>φ)] du<sub>b</sub>dv　[m⁻¹]</div>
+<p>β<sub>b,j</sub>=k<sub>0</sub>Re(n<sub>b,j</sub>)、q<sub>r</sub>=k<sub>0</sub>R Re(n<sub>r</sub>)。这里用于Hermitian耦合演化的相位只取neff实部；不会自动把环模全部泄漏通道装进Qc。</p>
+<div class="eq" id="eq-kappar">φ=t/R，ρ=R+u<sub>r</sub>，x=ρcosφ，z=ρsinφ<br>κ<sub>j</sub><sup>(r)</sup>(t) = (ωε<sub>0</sub>Δn²/4) ∫<sub>D_r</sub> E<sub>b,j</sub>*(x−R<sub>b</sub>,v) · T<sub>φ</sub>E<sub>r</sub>(u<sub>r</sub>,v)<br>　× exp[i(β<sub>b,j</sub>z−q<sub>r</sub>φ)] (ρ/R) du<sub>r</sub>dv　[m⁻¹]</div>
+<p>ρ/R是环芯径向位置与中心线弧长之间的雅可比。数值上两式都使用对称半范围L，但第一式的自变量是直线坐标s，第二式是中心线弧长t。两种形式的累积复振幅差是<strong>独立模/非正交近似与数值积分的诊断</strong>，不是证明严格互易性所要求的恒等式。</p>
+<div class="eq" id="eq-weak">C<sub>j</sub><sup>weak</sup> = −i ∫<sub>−L</sub><sup>L</sup> κ<sub>j</sub><sup>(b)</sup>(s) ds</div>
+<p>相位失配可使不同位置的贡献相消；“局部核大”不意味着“最终耦合大”。弱交换公式假设环输入不耗尽，也不包含经其他总线通道反馈的有限演化。程序的最终K采用下式，而非默认用|C<sup>weak</sup>|²：</p>
+<div class="eq" id="eq-star">i da<sub>r</sub>/ds = Σ<sub>j</sub> κ<sub>j</sub>*(s)a<sub>j</sub>，　i da<sub>j</sub>/ds = κ<sub>j</sub>(s)a<sub>r</sub><br>a<sub>r</sub>(−L)=1，a<sub>j</sub>(−L)=0</div>
+<p>四阶RK沿程推进这个Hermitian星形系统。它在保留的近似正交系数空间中保持Σ|a|²；没有总线模式之间的直接耦合项。程序另外检查总线Gram偏离单位阵，但没有实现一般非正交度量下的耦合动力学。数值范数守恒不能验证真实辐射、反射或粗糙背散。</p>
+<p class="map">对应：<code>coupling.quad / kernels / evaluate_window / evolve</code>。输入：单位功率独立环/总线场、底gap、λ/R及积分设置；输出：s/m、两域κ/m⁻¹、弱累积幅度和有限输出复振幅。</p>
+
+<h2 id="q">5. 从复振幅到通道损耗与Qc</h2>
+<div class="eq" id="eq-k">K<sub>j</sub>=|a<sub>j</sub>(L)|²，K<sub>tot</sub>=Σ<sub>j∈保留通道</sub>K<sub>j</sub>，0≤K<sub>tot</sub>&lt;1</div>
+<p>在环每一圈经过一次耦合区、相同损耗比例可重复的条件下，环能量每圈乘以1−K<sub>tot</sub>。令离散衰减等效为E(t)∝exp(−γ<sub>c</sub>t)，即可得：</p>
+<div class="eq" id="eq-qc">γ<sub>c</sub> = −ln(1−K<sub>tot</sub>)/T<sub>rt</sub>　[s⁻¹]<br>Qc<sub>total</sub> = ωT<sub>rt</sub>/[−ln(1−K<sub>tot</sub>)]<br>Qc<sub>j</sub> = Qc<sub>total</sub> K<sub>tot</sub>/K<sub>j</sub>，因此Σ<sub>j</sub>1/Qc<sub>j</sub>=1/Qc<sub>total</sub></div>
+<p>分通道公式按K比例分配总耦合衰减率，保证通道倒Q相加；它不是把每个K单独代入−ln(1−K)再相加。K<sub>tot</sub>=0时Qc为∞；零K通道Qc也是∞，JSON用null表示并保留解释。</p>
+<div class="eq" id="eq-loaded">1/Q<sub>loaded</sub> ≈ 1/Q<sub>int,other</sub> + Σ<sub>retained</sub>1/Qc<sub>j</sub> + Σ<sub>omitted</sub>1/Qc<sub>j</sub></div>
+<p>此式额外假设各能量衰减率可以独立相加。Q<sub>int,other</sub>只包含尚未列在耦合项里的吸收/散射等损耗，避免重复计数。实际拟合中命名为Q0的量可能已吸收未观测耦合通道，不能自动代入理想Q<sub>geometry</sub>。本工具输出的Qc,total只属于<strong>明确列出的保留通道</strong>，不等于加载Q或所有损耗的Q。</p>
+<p class="map">对应：<code>coupling.quality_factors / calculate</code>。输入：K列表、ng、R/µm、λ/nm；输出：无量纲Qc,total和Qc,j。失败或缺失通道会影响质量状态，不把缺失通道填成K=0。</p>
+
+<h2 id="diagonal">6. 对角自相位修正实际改变什么</h2>
+<p><code>integration.diagonal_phase=true</code>保持独立模场不变，用另一芯的介电扰动估计自传播常数修正。记A=ωε<sub>0</sub>Δn²/4，程序计算：</p>
+<div class="eq" id="eq-diagonal">δβ<sub>r</sub>(s)=A∫<sub>D_b</sub>|E<sub>r</sub>((R<sub>b</sub>+u<sub>b</sub>)/cos(s/R)−R,v)|²<br>　×[1/cos(s/R)]·[(R<sub>b</sub>+u<sub>b</sub>)/(R cos(s/R))] du<sub>b</sub>dv<br>δβ<sub>b,j</sub>(s)=A∫<sub>D_r</sub>|E<sub>b,j</sub>(√[(R+u<sub>r</sub>)²−s²]−R<sub>b</sub>,v)|²<br>　× (R+u<sub>r</sub>)/√[(R+u<sub>r</sub>)²−s²] du<sub>r</sub>dv</div>
+<div class="eq" id="eq-selfphase">p<sub>r,b</sub>(s)=∫<sub>0</sub><sup>s</sup>δβ<sub>r,b</sub>(s′)ds′<br>总线域相位增加 p<sub>b,j</sub>(s)−p<sub>r</sub>(Rφ)；环域增加 p<sub>b,j</sub>(z)−p<sub>r</sub>(t)</div>
+<p>单位δβ为m⁻¹、p为rad。版本1.1把积分相位零点固定在耦合中心s=0，使不同窗口的复振幅可直接比较；原先从−L累积的常量相位改变会造成无物理意义的窗口差。固定零点不改变同一窗口的K/Qc。根号和cos的局部坐标必须有效；默认窗口上限还受0.8R约束。这个选项没有重新求联合模场、修改耦合区截面、加入粗糙背散或独立更新环群延迟。</p>
+<p class="map">对应：<code>coupling.kernels</code>的<code>diagonal_phase</code>分支。输入同上；输出为相位修正后的复耦合核，而不是新FEM模场。</p>
+
+<h2 id="route">7. 转弯、基底切换和相干宽谱背景</h2>
+{{route_svg}}
+<p>每段直波导或圆弧有自己的前向保留模式。圆弧长度L=R|θ<sub>arc</sub>|，角度在此换为弧度；转向符号决定弯模的横向镜像及分量变号。路线按真实顺序连接。当前只实现直段与定半径圆弧，半径线性变化不能称为Euler弯，也不是现有原语。</p>
+<div class="eq" id="eq-overlap">⟨b,a⟩<sub>P</sub> = ¼∫[E<sub>a</sub>×H<sub>b</sub>* + E<sub>b</sub>*×H<sub>a</sub>]·ŝ dA<br>G<sup>(t)</sup><sub>ij</sub>=⟨t<sub>i</sub>,t<sub>j</sub>⟩<sub>P</sub>，B<sub>ij</sub>=⟨t<sub>i</sub>,s<sub>j</sub>⟩<sub>P</sub><br>a<sup>(t)</sup> = [G<sup>(t)</sup>]<sup>−1</sup>B a<sup>(s)</sup></div>
+<p>这里把界面交叉重叠矩阵记作B，以免与弱耦合振幅C混淆；代码变量<code>transitions</code>是G⁻¹B，旧说明中也写作G⁻¹C。源基底s与目标基底t是同一界面平面上的模式集合。Gram矩阵必须Hermitian、正定且不过分病态；程序拒绝最小特征值≤10⁻⁸或条件数&gt;10⁸。</p>
+<div class="eq" id="eq-routeprop">D<sub>ℓ</sub>(λ)=diag{exp[−i(2π/λ)n<sub>eff,j,ℓ</sub>(λ)L<sub>ℓ</sub>]}<br>a<sub>out</sub>=M<sub>out←N</sub>D<sub>N</sub>M<sub>N←N−1</sub>⋯D<sub>1</sub>M<sub>1←in</sub>a<sub>in</sub></div>
+<div class="eq" id="eq-routepower">T<sub>retained</sub>=(a<sub>out</sub>†G<sub>out</sub>a<sub>out</sub>)/(a<sub>in</sub>†G<sub>in</sub>a<sub>in</sub>)<br>IL<sub>retained</sub>=−10log<sub>10</sub>T<sub>retained</sub>　[dB]</div>
+<p>单位功率基底中|a<sub>j</sub>|²称为模态系数功率；非正交基底中它们不必加成a†Ga。若两个正交模式只是各自传播且最后按完整功率相加，单靠相对相位不会出现干涉条纹。相干背景需要不同相位路径在后续界面混合、重新投影到共同输出通道，或最终功率度量含非正交交叉项；β、界面矩阵和损耗随λ变化共同决定谱形。</p>
+<p>TE1在弯中更强衰减可产生高阶模过滤，但不意味着那部分功率必然转成TE0。TE0转换系数必须从复矩阵级联单独读取；其余未保留功率不能都叫精确算出的辐射损耗。没有完整反向波、辐射连续谱和跨段辐射再捕获。</p>
+<p>宽谱使用相位对齐的FEM锚点：Re(neff)、界面矩阵及Gram矩阵用三次样条，−Im(neff)的对数用PCHIP（数值下限10⁻¹⁶）；范围外拒绝外推。每个输出λ仍完整相干级联。参考1555 nm独立锚点验证了该参考路线的插值，不证明所有新结构成立。峰谷差包括平滑色散趋势，不自动等于去趋势纹波。</p>
+<p class="map">对应：<code>modes.overlap</code>；<code>routes.basis / matrices / propagate / spectrum</code>。输入：各段模式、长度µm、圆弧半径µm/角度deg/转向、λ/nm；输出：复传输矩阵、各输入的保留总功率、原/转换系数功率、IL/dB。</p>
+
+<h2 id="diagnostics">8. 数值诊断的层次与不能推出的结论</h2>
+<table><tr><th>诊断</th><th>实际检查</th><th>不能推出</th></tr>
+<tr><td>纵向窗口</td><td>扩展L；比较两域弱复振幅及有限输出复振幅、K；外20%核绝对包络积分；默认连续两次合格</td><td>不能代替FEM网格/PML收敛</td></tr>
+<tr><td>有限采样域</td><td>统计越界查询；在零填充前检查芯层高度内两边各3列非零场的边缘/峰值比</td><td>边缘衰减阈值不是域外场的严格数学上界</td></tr>
+<tr><td>双积分域</td><td>比较D_b、D_r累计复振幅；用绝对加相对阈值</td><td>不是独立非正交模严格互易恒等式</td></tr>
+<tr><td>模式标识</td><td>偏振、节点、芯占比、光线、相邻谱场重叠</td><td>没有自动证明任意简并支路</td></tr>
+<tr><td>Gram/保留模</td><td>正定性、条件数、近似正交性、明确通道清单</td><td>没有包含所有辐射与反向通道</td></tr>
+<tr><td>网格/PML</td><td>需按任务增加独立求解与关键量比较；现有参考只覆盖已列验证</td><td>改变几何后不能继承所有物理精度</td></tr>
+<tr><td>TM负面例</td><td>保存大域差、泄漏及质量失败原因；不强制通过</td><td>加密积分或系数范数守恒不能治愈模型适用性问题</td></tr></table>
+<div class="eq" id="eq-window">|ΔA| ≤ ε<sub>A,abs</sub> + ε<sub>rel</sub>max(|A<sub>new</sub>|,|A<sub>old</sub>|)<br>|ΔK| ≤ ε<sub>K,abs</sub> + 2ε<sub>rel</sub>max(K<sub>new</sub>,K<sub>old</sub>)<br>∫<sub>|s|≥0.8L</sub>|κ|ds ≤ ε<sub>A,abs</sub> + ε<sub>tail</sub>∫<sub>−L</sub><sup>L</sup>|κ|ds</div>
+<p>默认ε<sub>rel</sub>=5×10⁻⁴、ε<sub>A,abs</sub>=10⁻⁷（无量纲振幅）、ε<sub>K,abs</sub>=10⁻¹⁰、ε<sub>tail</sub>=10⁻³，越界时边缘场比阈值10⁻⁴。L按1.35倍扩展，受用户最大范围及0.8R局部坐标上限约束。最多8次比较，须连续两次符合振幅、功率和尾部条件；采样支撑检查也须通过。</p>
+<p>省略初值时，若30 µm能够留出所需比较次数，则沿用30 µm；否则L₀=Lmax/1.35²，预留至少两次扩展，因此小半径不会被默认初值锁死。用户显式指定的初值如果超过上限、或留不够所需比较次数，会得到清楚诊断及建议初值。自动规划只保证比较序列可达，并不保证实际场在上限前满足收敛或采样支撑条件。</p>
+<p>近相消/弱耦合通道使用绝对阈值避免除以接近零的幅度；结果记录<code>absolute_floor_dominated_*</code>。非零幅度低于ε<sub>A,abs</sub>时，精确相对Qc不可分辨，会额外标为诊断。阈值是工程数值筛选，不是对真实器件的精度承诺。</p>
+<p>不能只看最后几个核值为零，因为插值器越界也会返回零。代码保留requested/used extent、每次Δ和allowed阈值、tail、越界计数、边缘场比以及状态。若范围不足，返回<code>unconverged_at_limit</code>；若采样边缘仍显著，返回<code>sampling_domain_truncated</code>。即使Qc数值稳定，这些失败也不会被qualified掩盖。</p>
+<p class="map">对应：<code>coupling.boundary_ratio / mixed_error / converged_window / calculate</code>。完整标量诊断在每项<code>result.json → results → window</code>。不以报告配色代替实际状态。</p>
+
+<h2 id="execution">9. 多参数扫描与原生解对应</h2>
+<p><code>scan</code>可指定<code>ring_widths_um</code>、<code>bus_widths_um</code>、<code>ring_radii_um</code>和<code>wavelengths_nm</code>，采用笛卡尔积；未指定的轴沿用原标量。先运行<code>ring-bus --config ... --plan</code>查看规模。相同轴的scan数组覆盖标量，不使用隐含zip配对。</p>
+<p>程序合并所有目标λ±2 nm导数锚点，直模按(总线宽,λ)去重，弯模按(环宽,R,λ)去重；gap只影响积分。每族在同一个MPH的原生Parametric Sweep中求解。默认32个“通道×外部参数”模式算例、128个耦合输出算例上限；超过会在启动COMSOL前退出，须显式提高命令行预算。</p>
+<p>每个结果保留case_id、环/总线输入宽及底宽、R、λ、gap和通道清单；<code>native-mode-map.json</code>、族manifest及<code>native-map.csv</code>对应到MPH文件、study、dataset、outer solution和eigenmode。某宽度不支持所请求TE1时，该项记录缺失，仍可给保留TE0的诊断值，但不冒充所请求通道齐全的结果；其他几何可独立合格。</p>
+<p class="map">对应：<code>scan.plan / run</code>、<code>solver.solve</code>、<code>NativeModes.java</code>；CLI命令入口<code>cli.main</code>。输入schema与示例位于toolkit中。报告按R/λ分面，宽度/通道叠图，完整表折叠。</p>
+
+<h2>10. 来源、模型状态与使用边界</h2>
+<p>本文公式来自当前<code>sinphotonics</code>实现以及上文显式写出的坐标变换、单圈指数衰减和模式投影推导。迁移来源为冻结run02/run03/run05/run08耦合代码及bend-filter模式级联代码；其索引见toolkit README，真实来源文件与哈希在参考包manifest。本文没有把独立模近似包装成Maxwell方程的严格联合解。</p>
+<p>reference300-v1的完整SiN/SiO₂色散系数由<code>materials.json</code>提供；1550 nm nSiN≈1.99635153、nSiO₂≈1.44426638，材料吸收为0。86°是设计假设，不等于SEM测量。实验拟合分支不由理论Qc反推；由FSR推得的ng不是第二项独立验证。</p>
+<div class="warn">MPH带解状态以读回清单为准。标为cleared-template的文件只保留几何/材料/网格设置/研究，不带原生解；标为solved的文件有已核验解。任何截面组合、示意图或本说明都不是三维全器件解。历史12个R40圆弧对应旧的无腔走线，不是最新带环/金属布局的完整验证。</div>
+<p>本页所有结构图为确定性语义SVG，保留参数、单位、图元和源码映射；只是示意比例。仅做文件结构和语义完整性检查，没有浏览器美观巡检；科学解释与可读性仍请审阅者核对。</p>
+</body></html>

@@ -102,6 +102,8 @@ public class NativeModes {
   m.component("c").mesh("mesh").feature("size").set("custom",true);m.component("c").mesh("mesh").feature("size").set("hmax",".35[um]*mesh_scale");m.component("c").mesh("mesh").feature("size").set("hmin",".008[um]");
   meshsize("nearSize","g_near_dom",".10[um]*mesh_scale",".008[um]");meshsize("coreSize","g_core_dom",".035[um]*mesh_scale",".008[um]");
   m.component("c").mesh("mesh").create("tri","FreeTri");m.component("c").mesh("mesh").feature("tri").selection().named("physical");m.component("c").mesh("mesh").create("mapped","Map");m.component("c").mesh("mesh").feature("mapped").selection().named("pmlDomains");
+  PrintWriter mapping=new PrintWriter(new OutputStreamWriter(new FileOutputStream(root+"/native-map.csv"),"UTF-8"));
+  mapping.println("model,study,dataset,outer,eigenmode,width_bottom_um,wavelength_nm,radius_um,npz");
   String[] seeds=cfg.getProperty("seeds").split("\\|"),channels=cfg.getProperty("channels").split(","),eigenmodes=cfg.getProperty("eigenmodes").split(",");int count=(int)num("count");
   for(int k=0;k<seeds.length;k++){
    String st="st"+k;m.study().create(st);m.study(st).label(channels[k]+" native parameter sweep");
@@ -129,6 +131,7 @@ public class NativeModes {
     String ip="ip"+k;m.result().numerical().create(ip,"Interp");m.result().numerical(ip).set("data",data);m.result().numerical(ip).set("outersolnum",new int[]{outer});m.result().numerical(ip).set("coord",coords);m.result().numerical(ip).set("expr",Arrays.copyOf(expr,6));
     double[][][] vals=m.result().numerical(ip).getData();ArrayList<Integer> keep=new ArrayList<Integer>();
     for(int j=0;j<info[0].length;j++){
+     mapping.println(id+".mph,"+st+","+data+","+outer+","+(j+1)+","+w+","+wl+","+r+","+id+"_s"+k+"_p"+outer+".npz");mapping.flush();
      double[][] f=new double[6][];for(int e=0;e<6;e++)f[e]=vals[e][j];array("line_"+j,f);int n=nodes(f,info[3][j]>.5?0:1);
      if(((channels[k].startsWith("TE") && info[3][j]>.8)||(channels[k].startsWith("TM") && info[3][j]<.2)) && info[2][j]>.015 && n==Integer.parseInt(channels[k].substring(2)) && Math.abs(info[1][j])<.03){keep.add(j);System.out.println("MODE "+id+" w="+w+" wl="+wl+" r="+r+" n="+n+" neff="+info[0][j]+" im="+info[1][j]+" core="+info[2][j]);}
     }
@@ -151,6 +154,7 @@ public class NativeModes {
     m.result().numerical().remove(ip);archive.close();System.out.println("EXPORTED "+id+" study="+k+" outer="+outer);
    }
   }
+  mapping.close();
   String[] ds=m.result().dataset().tags();
   m.result().create("modefield","PlotGroup2D");m.result("modefield").label("Mode field | select dataset / outer parameter / eigenmode");
   m.result("modefield").set("data",ds[ds.length-1]);m.result("modefield").create("surf","Surface");

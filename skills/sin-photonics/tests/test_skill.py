@@ -20,7 +20,7 @@ class SkillContract(unittest.TestCase):
         toolkit=ROOT.parents[1]/'research/sin-photonics'
         run=subprocess.run([sys.executable,str(ROOT/'scripts/run.py'),'--toolkit',str(toolkit),'--version'],capture_output=True,text=True)
         self.assertEqual(run.returncode,0,run.stderr)
-        self.assertEqual(run.stdout.strip(),'1.0.0')
+        self.assertEqual(run.stdout.strip(),'1.1.0')
 
 
 if __name__=='__main__':unittest.main()

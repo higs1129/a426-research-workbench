@@ -2,15 +2,65 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'research/sin-photonics'))
 from sinphotonics.geometry import CrossSection,cells,rounded_route
 from sinphotonics.materials import indices
-from sinphotonics.coupling import evolve,quality_factors,quad
+from sinphotonics.coupling import evolve,quality_factors,quad,window_plan,converged_window,mixed_error
+from sinphotonics.scan import plan
 from sinphotonics.routes import propagate
 
 
 class PhysicsInvariants(unittest.TestCase):
+    def test_prefixed_svg_is_rejected_in_html(self):
+        from sinphotonics.report import check_html
+        text='<html><ns0:svg xmlns:ns0="http://www.w3.org/2000/svg"><ns0:text>x</ns0:text></ns0:svg></html>'
+        with patch.object(Path,'read_text',return_value=text):
+            with self.assertRaisesRegex(ValueError,'Prefixed SVG'):
+                check_html('unused-in-memory.html')
+    def test_small_radius_window_reachability(self):
+        for radius in [30.001,35,40,57.932443]:
+            cfg,sequence,detail=window_plan(radius,{}, {})
+            self.assertGreaterEqual(len(sequence)-1,cfg['consecutive_passes'])
+            self.assertLess(max(sequence),.8*radius)
+            self.assertEqual(detail['initial_mode'],'automatic')
+        with self.assertRaisesRegex(ValueError,'only 1 expansion'):
+            window_plan(40,{'extent_um':30},{})
+        with self.assertRaisesRegex(ValueError,'below limit'):
+            window_plan(35,{'extent_um':30},{})
+
+    def test_zero_fill_support_cannot_pass_stable_window(self):
+        from types import SimpleNamespace
+        def stable(*args,**kwargs):
+            return dict(amps=np.array([1e-10j]),alts=np.array([1e-10j]),state=np.array([1,1e-10j]),
+                powers=np.array([1e-20]),tails=np.zeros((2,1)),envelopes=np.ones((2,1)),
+                support=[dict(ring=dict(outside=10,boundary_field_ratio=.01))])
+        with patch('sinphotonics.coupling.evaluate_window',side_effect=stable):
+            _,diagnostic=converged_window(SimpleNamespace(row={'radius_um':40}),[],1,{}, {})
+        self.assertEqual(diagnostic['status'],'sampling_domain_truncated')
+        self.assertFalse(diagnostic['converged'])
+        self.assertEqual(len(diagnostic['comparisons']),2)
+        def decayed(*args,**kwargs):
+            value=stable();value['support'][0]['ring']['boundary_field_ratio']=1e-6
+            return value
+        with patch('sinphotonics.coupling.evaluate_window',side_effect=decayed):
+            for radius in [30.001,35,40]:
+                _,diagnostic=converged_window(SimpleNamespace(row={'radius_um':radius}),[],1,{}, {})
+                self.assertTrue(diagnostic['converged'])
+                self.assertEqual(len(diagnostic['comparisons']),2)
+
+    def test_mixed_tolerances_near_cancellation(self):
+        self.assertTrue(mixed_error(np.array([1e-12j]),np.array([-1e-12j]),5e-4,1e-7)[2])
+        self.assertFalse(mixed_error(np.array([2e-7j]),np.array([-2e-7j]),5e-4,1e-7)[2])
+
+    def test_spectral_anchor_and_mode_deduplication(self):
+        cfg=dict(scan=dict(ring_widths_um=[1.2,1.3],bus_widths_um=[1.1,1.2],ring_radii_um=[40,60],wavelengths_nm=[1550,1552]),gaps_um=[1,1.2])
+        result=plan(cfg,CrossSection())
+        self.assertEqual(result['ring']['wavelengths'],[1548,1550,1552,1554])
+        self.assertEqual(result['native_mode_cases'],24)
+        self.assertEqual(result['coupling_cases'],32)
+
     def test_material_dispersion(self):
         nc,no=indices(1550)
         self.assertAlmostEqual(float(nc),1.996351530914008,13)

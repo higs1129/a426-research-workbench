@@ -21,7 +21,11 @@ def verify(ref,results):
         if float(r['ring_width_um'])==2 and float(r['bus_width_um'])==2 and float(r['gap_um'])==.8)
     for k in ['Qc_TE0','Qc_TE1']:
         assert abs(wide[k]/float(expected[k])-1)<.002,(k,wide[k],expected[k])
-    phase,_=coupling.calculate(r,buses,.8,ng,step_um=.03,nu=48,nv=24,diagonal_phase=True)
+    # Historical self-phase numbers used L=30 µm. Keep this fixed-window
+    # regression distinct from v1.1 longitudinal convergence acceptance.
+    phase_window=coupling.evaluate_window(r,buses,.8,extent_um=30,step_um=.03,nu=48,nv=24,diagonal_phase=True)
+    qt,qj=coupling.quality_factors(phase_window['powers'],ng,r.row['radius_um'],1550)
+    phase=dict(Qc_total=qt,Qc_TE0=qj[0],Qc_TE1=qj[1])
     phase_errors=[]
     for e in csv.DictReader((ref/'evidence/qc_phase_comparison.csv').open(encoding='utf-8-sig')):
         if float(e['ring_um'])==2 and float(e['bus_um'])==2 and float(e['gap_um'])==.8:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "a426-sin-photonics"
-version = "1.0.0"
+version = "1.1.0"
 description = "Isolated COMSOL modes, retained-channel ring coupling and coherent circular routes"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.0", "scipy>=1.14", "jsonschema>=4.20"]

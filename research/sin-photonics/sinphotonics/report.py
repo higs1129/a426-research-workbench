@@ -42,6 +42,7 @@ def chart(figure_id,title,xlabel,ylabel,series,provenance,xunit='',yunit='',ysca
     for child in list(root):
         if child.get('data-role')=='legend':root.remove(child)
     legend='<p>'+ ' · '.join(html.escape(s['label']) for s in series)+'</p>'
+    ET.register_namespace('', 'http://www.w3.org/2000/svg')
     return ET.tostring(root,encoding='unicode')+legend
 
 
@@ -57,8 +58,8 @@ def structure(cfg,kind):
 
 
 def table(rows):
-    keys=list(rows[0]) if rows else []
-    return '<details><summary>数值与诊断表</summary><table><tr>'+''.join(f'<th>{html.escape(k)}</th>' for k in keys)+'</tr>'+''.join('<tr>'+''.join(f'<td>{html.escape(str(clean(r[k])))}</td>' for k in keys)+'</tr>' for r in rows)+'</table></details>'
+    keys=list(dict.fromkeys(k for r in rows for k in r if k!='window'))
+    return '<details><summary>数值与诊断表</summary><table><tr>'+''.join(f'<th>{html.escape(k)}</th>' for k in keys)+'</tr>'+''.join('<tr>'+''.join(f'<td>{html.escape(str(clean(r.get(k))))}</td>' for k in keys)+'</tr>' for r in rows)+'</table></details>'
 
 
 def page(path,title,content,payload):
@@ -72,19 +73,33 @@ def page(path,title,content,payload):
 
 def check_html(path):
     import re
+    from html.parser import HTMLParser
     text=Path(path).read_text(encoding='utf-8');ids=[];count=0
+    class SvgMarkupAudit(HTMLParser):
+        depth=0
+        def handle_starttag(self,tag,attrs):
+            if ':' in tag and (self.depth or tag.split(':')[-1]=='svg'):
+                raise ValueError('Prefixed SVG tags are not native SVG elements in text/html')
+            if tag=='svg':self.depth+=1
+        def handle_endtag(self,tag):
+            if tag=='svg':self.depth-=1
+    SvgMarkupAudit().feed(text)
     for svg in re.findall(r'<(?:\w+:)?svg\b.*?</(?:\w+:)?svg>',text,re.S):
         root=ET.fromstring(svg)
         if root.get('data-role')!='scientific-figure':continue
         count+=1
         roles={el.get('data-role') for el in root.iter()}
-        for role in ('figure-model','data-series','axes','ticks-x','ticks-y','axis-title-x','axis-title-y'):
+        metadata=next(el for el in root.iter() if el.get('data-role')=='figure-model')
+        model=json.loads(metadata.text)
+        required=('figure-model','structures','dimensions','annotations') if model.get('kind')=='schematic' else ('figure-model','data-series','axes','ticks-x','ticks-y','axis-title-x','axis-title-y')
+        for role in required:
             if role not in roles:raise ValueError(f'Missing SVG role: {role}')
         for el in root.iter():
             if el.get('id'):ids.append(el.get('id'))
             if any(k.lower().startswith('on') for k in el.attrib):raise ValueError('SVG event handler')
-        metadata=next(el for el in root.iter() if el.get('data-role')=='figure-model')
-        model=json.loads(metadata.text);renderer().validate_finite(model)
+        if model.get('kind')=='schematic':
+            if not model.get('not_to_scale') or not model.get('parameters') or not model.get('source'):raise ValueError('Unspecified schematic provenance')
+        else:renderer().validate_finite(model)
         if 'Calibri' not in svg or 'Microsoft YaHei' not in svg:raise ValueError('Fallback fonts missing')
     if len(ids)!=len(set(ids)):raise ValueError('Duplicate SVG ids')
     if not count:raise ValueError('No semantic figure')
@@ -94,15 +109,27 @@ def check_html(path):
 def simulation_report(out,result):
     cfg=result['configuration'];rows=result['results'];kind=result['command'];series=[]
     if kind=='ring-bus':
-        for key in rows[0]:
-            if key.startswith('Qc_'):
-                points=[[r['gap_bottom_um'],r[key]/1e6] for r in rows if np.isfinite(r[key])]
-                if points:series.append(dict(id=key,kind='point-line',label=key,points=points))
-        if series:
-            figure=chart('coupling','Retained coupling estimate','Bottom gap','Qc',series,'complex_coupling.npz; configuration.json','µm','million','log')
-        else:
-            series=[dict(id='zero-coupling',kind='scatter',label='K total (Qc infinite)',points=[[r['gap_bottom_um'],r['K_total']] for r in rows])]
-            figure=chart('coupling','Zero retained exchange','Bottom gap','K total',series,'complex_coupling.npz; configuration.json','µm')
+        figure='';facets=sorted({(r.get('ring_radius_um',cfg.get('ring_radius_um')),r.get('wavelength_nm',cfg.get('wavelength_nm'))) for r in rows})
+        for fi,(radius,wl) in enumerate(facets):
+            selected=[r for r in rows if r.get('ring_radius_um',radius)==radius and r.get('wavelength_nm',wl)==wl]
+            groups=sorted({(r.get('ring_width_bottom_um',cfg.get('ring_width_um')),r.get('bus_width_bottom_um',cfg.get('bus_width_um'))) for r in selected})
+            series=[]
+            for wi,(rw,bw) in enumerate(groups):
+                group=[r for r in selected if r.get('ring_width_bottom_um',rw)==rw and r.get('bus_width_bottom_um',bw)==bw]
+                qkeys=sorted({k for r in group for k in r if k.startswith('Qc_')})
+                for key in qkeys:
+                    for good in [True,False]:
+                        points=[[r['gap_bottom_um'],r[key]/1e6] for r in group if r.get(key) is not None and np.isfinite(r[key]) and r['qualified']==good]
+                        if points:series.append(dict(id=f'w{wi}-{key}-{good}',kind='point-line' if good else 'scatter',
+                            label=f'wr{rw:g}/wb{bw:g} {key}'+('' if good else ' diagnostic'),points=points))
+            figure+=f'<h2>R={radius:g} µm · λ={wl:g} nm</h2>'
+            if series:
+                figure+=chart(f'coupling-{fi}','Retained coupling estimate','Bottom gap','Qc',series,'complex_coupling.npz; native-mode-map.json','µm','million','log')
+            else:
+                series=[dict(id='status',kind='scatter',label='No finite Qc: inspect diagnostics',points=[[i+1,0] for i in range(len(selected))])]
+                figure+=chart(f'coupling-{fi}','Unavailable or zero-coupling cases','Case ordinal','Finite Qc available',series,'result.json')
+        first=result.get('cases',[{}])[0];cfg={**cfg,**{k:first[k] for k in ['ring_radius_um','ring_width_um','bus_width_um'] if k in first}}
+        figure+='<p>每点保留 window_status、实际积分半范围及逐次比较；完整诊断见 <a href="result.json">result.json</a>，原生参数/解对应见 <a href="native-mode-map.json">native-mode-map.json</a>。缺失通道不会填成零或替换为 TE0。</p>'
         csvname='coupling.csv'
     else:
         for label in result['channels']:

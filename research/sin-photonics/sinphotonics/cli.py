@@ -17,10 +17,17 @@ def read_config(path,command):
     schema=json.loads(Path(__file__).with_name('config.schema.json').read_text())
     jsonschema.validate(cfg,schema)
     cs=CrossSection(**cfg.get('cross_section',{}))
-    required=['ring_radius_um','ring_width_um','bus_width_um','wavelength_nm','gaps_um'] if command=='ring-bus' else ['width_um','wavelengths_nm','segments']
+    required=['gaps_um'] if command=='ring-bus' else ['width_um','wavelengths_nm','segments']
     missing=set(required)-set(cfg)
     if missing:raise ValueError(f'Missing configuration keys: {sorted(missing)}')
     widths=[cfg[k] for k in ('width_um','ring_width_um','bus_width_um') if k in cfg]
+    if command=='ring-bus':
+        from .scan import plan
+        axes=plan(cfg,cs)['axes']
+        widths+=axes['ring_widths_um']+axes['bus_widths_um']
+        integration=cfg.get('integration',{})
+        for radius in axes['ring_radii_um']:
+            coupling.window_plan(radius,integration,integration.get('window',{}))
     if any(cs.bottom_width(w)-2*cs.h*1e6*cs.cot<=0 for w in widths):
         raise ValueError('Nonpositive top width')
     if any(cs.bottom_gap(g)<=0 for g in cfg.get('gaps_um',[])):
@@ -49,50 +56,8 @@ def check_material(row,cs):
 
 
 def ring_bus(cfg,cs,out,library,bin_dir,cores):
-    wl=cfg['wavelength_nm'];rad=cfg['ring_radius_um'];rw=cs.bottom_width(cfg['ring_width_um']);bw=cs.bottom_width(cfg['bus_width_um'])
-    label=cfg.get('ring_channel','TE0');labels=cfg.get('bus_channels',[label]);mesh=cfg.get('mesh_scale',.7)
-    if any(x[:2]!=label[:2] for x in labels):
-        raise ValueError('Ring-bus cross-polarization coupling is not qualified by this implementation')
-    if library:
-        rc=modes.catalog(library/'ring');bc=modes.catalog(library/'bus')
-    else:
-        rc=modes.catalog(solver.solve(out/'ring',cs,[rw],[wl-2,wl,wl+2],[rad],[label],bin_dir,mesh,cores,cfg.get('mode_search')))
-        bc=modes.catalog(solver.solve(out/'bus',cs,[bw],[wl-2,wl,wl+2],[0],labels,bin_dir,mesh,cores,cfg.get('mode_search')))
-    rr=modes.select(rc,rw,wl,rad,label,True);br=[modes.select(bc,bw,wl,0,x,True) for x in labels]
-    for r in [rr,*br]:check_material(r,cs)
-    ring=modes.load(rr,cs);buses=[modes.load(r,cs) for r in br]
-    disp=modes.dispersion(rc,rw,wl,rad,label)
-    bd={}
-    for x in labels:
-        try:bd[x]=modes.dispersion(bc,bw,wl,0,x)
-        except ValueError as error:
-            if 'No retained' not in str(error):raise
-            r=br[labels.index(x)]
-            bd[x]=dict(neff=r['neff_real'],imag_neff=r['neff_imag'],ng=None,
-                       warning='No derivative anchors in this historical bus scan; solve to obtain ng')
-    rows=[];arrays={}
-    for i,gap in enumerate(cfg['gaps_um']):
-        row,a=coupling.calculate(ring,buses,cs.bottom_gap(gap),disp['ng'],**cfg.get('integration',{}))
-        rows.append(row)
-        arrays.update({f'gap{i}_{k}':v for k,v in a.items()})
-    # Gram is a diagnostic of the retained bus basis, not silently orthogonalized CMT.
-    fields=np.array([b.field for b in buses]);gram=modes.overlap(fields,fields,buses[0].weights)
-    gram_error=float(np.max(abs(gram-np.eye(len(buses)))))
-    if gram_error>.02:
-        for r in rows:
-            r['qualified']=False;r['status']='diagnostic_only';r['reasons'].append('bus_basis_nonorthogonality_above_2_percent')
-    arrays['bus_gram']=gram
-    np.savez_compressed(out/'complex_coupling.npz',**arrays)
-    write_csv(out/'coupling.csv',[{**r,'reasons':';'.join(r['reasons'])} for r in rows])
-    result=dict(version=__version__,command='ring-bus',configuration=cfg,ring_dispersion=disp,bus_dispersion=bd,
-                bus_gram_identity_error=gram_error,results=rows,
-                limitations=['isolated modes + forward Hermitian star CMT; not joint full-wave coupling',
-                  'Qc_total only includes retained channels; not loaded Q',
-                  'two integration domains are a model diagnostic, not an exact nonorthogonal identity',
-                  'diagonal_phase is fixed-field self phase, not mode reshaping',
-                  'zero coupling gives infinite Q, represented as null in JSON',
-                  'material absorption zero; geometry leakage Q is not measured intrinsic Q'])
-    return result
+    from .scan import run
+    return run(cfg,cs,out,library,bin_dir,cores)
 
 
 def bends(cfg,cs,out,library,bin_dir,cores):
@@ -152,12 +117,25 @@ def main(argv=None):
     parser.add_argument('--version',action='version',version=__version__)
     sub=parser.add_subparsers(dest='command',required=True)
     for name in ['ring-bus','bends','routes']:
-        p=sub.add_parser(name);p.add_argument('--config',required=True);p.add_argument('--output',required=True)
+        p=sub.add_parser(name);p.add_argument('--config',required=True);p.add_argument('--output')
         p.add_argument('--library',help='Verified portable mode library; omit to solve in COMSOL')
         p.add_argument('--comsol-bin');p.add_argument('--cores',type=int,default=3)
+        if name=='ring-bus':
+            p.add_argument('--plan',action='store_true',help='Preview native and coupling case counts without solving')
+            p.add_argument('--max-native-cases',type=int,default=32)
+            p.add_argument('--max-coupling-cases',type=int,default=128)
     args=parser.parse_args(argv)
     try:
         cfg,cs=read_config(args.config,args.command)
+        if args.cores<1:raise ValueError('cores must be positive')
+        if args.command=='ring-bus':
+            from .scan import plan
+            planned=plan(cfg,cs)
+            print(json.dumps({'scan_plan':planned},ensure_ascii=False),flush=True)
+            if args.plan:return
+            if planned['coupling_cases']>args.max_coupling_cases or (not args.library and planned['native_mode_cases']>args.max_native_cases):
+                raise ValueError('Scan exceeds explicit case budget; inspect --plan and deliberately set --max-native-cases / --max-coupling-cases')
+        if not args.output:raise ValueError('--output is required for execution')
         library=check_library(args.library,cs) if args.library else None
         bin_dir=solver.locate_bin(args.comsol_bin) if library is None else None
         out=new_output(args.output)

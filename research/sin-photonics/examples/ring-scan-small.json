@@ -1,0 +1,13 @@
+{
+  "scan": {
+    "ring_widths_um": [1.2, 1.3],
+    "bus_widths_um": [1.1, 1.2],
+    "ring_radii_um": [57.932443, 60],
+    "wavelengths_nm": [1550]
+  },
+  "gaps_um": [1.1, 1.2],
+  "ring_channel": "TE0",
+  "bus_channels": ["TE0"],
+  "mode_search": {"eigenmodes": 2},
+  "integration": {"extent_um": 15}
+}
